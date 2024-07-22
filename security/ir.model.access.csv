@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_incoming_product_info_user,incoming.product.info.user,model_incoming_product_info,base.group_user,1,1,1,1
+access_import_product_info_user,import.product.info.user,model_import_product_info,base.group_user,1,1,1,1
+access_receive_products_wizard_user,receive.products.wizard.user,model_receive_products_wizard,base.group_user,1,1,1,1
