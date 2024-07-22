@@ -12,8 +12,8 @@ This module allows importing product information from various suppliers and mana
     'data': [
         'security/ir.model.access.csv',
         'views/incoming_product_info_views.xml',
-        'views/menu_views.xml',
         'wizards/product_operations_views.xml',
+        'views/menu_views.xml',
     ],
     'installable': True,
     'application': False,
