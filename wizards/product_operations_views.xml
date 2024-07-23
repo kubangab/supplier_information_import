@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <form>
                 <group>
-                    <field name="supplier_id"/>
+                    <field name="import_config_id"/>
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
                 </group>
@@ -18,7 +18,7 @@
         </field>
     </record>
 
-   <record id="action_import_product_info" model="ir.actions.act_window">
+    <record id="action_import_product_info" model="ir.actions.act_window">
         <field name="name">Import Product Info</field>
         <field name="res_model">import.product.info</field>
         <field name="view_mode">form</field>

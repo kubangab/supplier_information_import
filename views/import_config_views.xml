@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_import_format_config_tree" model="ir.ui.view">
+        <field name="name">import.format.config.tree</field>
+        <field name="model">import.format.config</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="file_type"/>
+                <field name="supplier_id"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_import_format_config_form" model="ir.ui.view">
+        <field name="name">import.format.config.form</field>
+        <field name="model">import.format.config</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="file_type"/>
+                        <field name="supplier_id"/>
+                    </group>
+                    <notebook>
+                        <page string="Column Mappings">
+                            <field name="column_mapping">
+                                <tree editable="bottom">
+                                    <field name="source_column"/>
+                                    <field name="destination_field"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_import_format_config" model="ir.actions.act_window">
+        <field name="name">Import Format Configurations</field>
+        <field name="res_model">import.format.config</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

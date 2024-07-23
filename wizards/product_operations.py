@@ -10,88 +10,80 @@ class ImportProductInfo(models.TransientModel):
 
     file = fields.Binary(string='File', required=True)
     file_name = fields.Char(string='File Name')
-    supplier_id = fields.Many2one('res.partner', string='Supplier', required=True)
+    import_config_id = fields.Many2one('import.format.config', string='Import Configuration', required=True)
 
     def import_file(self):
         if not self.file:
             raise exceptions.UserError('Please select a file to import.')
 
+        config = self.import_config_id
+        if not config:
+            raise exceptions.UserError('Please select an import configuration.')
+
         file_content = base64.b64decode(self.file)
         
-        if self.file_name.lower().endswith('.csv'):
-            self.process_csv(file_content)
-        elif self.file_name.lower().endswith(('.xls', '.xlsx')):
-            self.process_excel(file_content)
+        if config.file_type == 'csv':
+            self.process_csv(file_content, config)
+        elif config.file_type == 'excel':
+            self.process_excel(file_content, config)
         else:
-            raise exceptions.UserError('Unsupported file format. Please use CSV or Excel files.')
+            raise exceptions.UserError('Unsupported file format.')
 
         return {'type': 'ir.actions.act_window_close'}
 
-    def process_csv(self, file_content):
+    def process_csv(self, file_content, config):
         csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
-        reader = csv.DictReader(csv_data, delimiter='\t')
-        self.process_rows(reader)
+        reader = csv.DictReader(csv_data, delimiter=',')
+        self.process_rows(reader, config)
 
-    def process_excel(self, file_content):
+    def process_excel(self, file_content, config):
         workbook = xlrd.open_workbook(file_contents=file_content)
         sheet = workbook.sheet_by_index(0)
         header = [sheet.cell_value(0, col) for col in range(sheet.ncols)]
         rows = [dict(zip(header, [sheet.cell_value(row, col) for col in range(sheet.ncols)]))
                 for row in range(1, sheet.nrows)]
-        self.process_rows(rows)
+        self.process_rows(rows, config)
 
-    def process_rows(self, rows):
+    def process_rows(self, rows, config):
         IncomingProductInfo = self.env['incoming.product.info']
         SupplierInfo = self.env['product.supplierinfo']
 
         for row in rows:
-            supplier_product_code = row.get('Supplier Product Code')
-            serial_number = row.get('SN')
+            values = {}
+            for mapping in config.column_mapping:
+                source_value = row.get(mapping.source_column)
+                if source_value:
+                    values[mapping.destination_field.name] = source_value
 
-            # Sök efter befintlig IncomingProductInfo
+            if 'supplier_product_code' not in values or 'sn' not in values:
+                raise exceptions.UserError('Missing required fields: Supplier Product Code or Serial Number')
+
             existing_info = IncomingProductInfo.search([
-                ('supplier_id', '=', self.supplier_id.id),
-                ('sn', '=', serial_number)
+                ('supplier_id', '=', config.supplier_id.id),
+                ('sn', '=', values['sn'])
             ], limit=1)
 
             supplier_info = SupplierInfo.search([
-                ('name', '=', self.supplier_id.id),
-                ('product_code', '=', supplier_product_code)
+                ('name', '=', config.supplier_id.id),
+                ('product_code', '=', values['supplier_product_code'])
             ], limit=1)
 
             if not supplier_info:
-                # Skapa en ny produkt och leverantörsinformation om den inte finns
                 product_tmpl = self.env['product.template'].create({
-                    'name': row.get('Model No.'),
-                    'default_code': row.get('Model No.'),
+                    'name': values.get('model_no', 'New Product'),
+                    'default_code': values.get('model_no', 'New Product'),
                 })
                 supplier_info = SupplierInfo.create({
-                    'name': self.supplier_id.id,
+                    'name': config.supplier_id.id,
                     'product_tmpl_id': product_tmpl.id,
-                    'product_code': supplier_product_code,
+                    'product_code': values['supplier_product_code'],
                 })
                 product = product_tmpl.product_variant_id
             else:
                 product = supplier_info.product_tmpl_id.product_variant_id
 
-            values = {
-                'supplier_id': self.supplier_id.id,
-                'product_id': product.id,
-                'supplier_product_code': supplier_product_code,
-                'sn': serial_number,
-                'mac1': row.get('MAC1'),
-                'mac2': row.get('MAC2'),
-                'model_no': row.get('Model No.'),
-                'imei': row.get('IMEI'),
-                'app_key': row.get('AppKey'),
-                'app_key_mode': row.get('AppKeyMode'),
-                'pn': row.get('PN'),
-                'dev_eui': row.get('DEVEUI'),
-                'root_password': row.get('ROOT_PASSWORD'),
-                'admin_password': row.get('ADMIN_PASSWORD'),
-                'wifi_password': row.get('WIFI_PASSWORD'),
-                'wifi_ssid': row.get('WIFISSID'),
-            }
+            values['supplier_id'] = config.supplier_id.id
+            values['product_id'] = product.id
 
             if existing_info:
                 existing_info.write(values)
