@@ -8,7 +8,7 @@
 This module allows importing product information from various suppliers and managing the reception of physical products.
     """,
     'author': 'Lasse Larsson, Kubang AB',
-    'depends': ['base', 'product', 'stock'],
+    'depends': ['base', 'product', 'stock', 'purchase'],
     'license': 'LGPL-3',
     'data': [
         'security/ir.model.access.csv',
