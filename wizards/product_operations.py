@@ -46,13 +46,21 @@ class ImportProductInfo(models.TransientModel):
 
         for row in rows:
             supplier_product_code = row.get('Supplier Product Code')
+            serial_number = row.get('SN')
+
+            # Sök efter befintlig IncomingProductInfo
+            existing_info = IncomingProductInfo.search([
+                ('supplier_id', '=', self.supplier_id.id),
+                ('sn', '=', serial_number)
+            ], limit=1)
+
             supplier_info = SupplierInfo.search([
                 ('name', '=', self.supplier_id.id),
                 ('product_code', '=', supplier_product_code)
             ], limit=1)
 
             if not supplier_info:
-                # Skapa en ny leverantörsinformation om den inte finns
+                # Skapa en ny produkt och leverantörsinformation om den inte finns
                 product_tmpl = self.env['product.template'].create({
                     'name': row.get('Model No.'),
                     'default_code': row.get('Model No.'),
@@ -62,12 +70,15 @@ class ImportProductInfo(models.TransientModel):
                     'product_tmpl_id': product_tmpl.id,
                     'product_code': supplier_product_code,
                 })
+                product = product_tmpl.product_variant_id
+            else:
+                product = supplier_info.product_tmpl_id.product_variant_id
 
             values = {
                 'supplier_id': self.supplier_id.id,
-                'product_id': supplier_info.product_tmpl_id.product_variant_id.id,
+                'product_id': product.id,
                 'supplier_product_code': supplier_product_code,
-                'sn': row.get('SN'),
+                'sn': serial_number,
                 'mac1': row.get('MAC1'),
                 'mac2': row.get('MAC2'),
                 'model_no': row.get('Model No.'),
@@ -82,7 +93,10 @@ class ImportProductInfo(models.TransientModel):
                 'wifi_ssid': row.get('WIFISSID'),
             }
 
-            incoming_product_info = IncomingProductInfo.create(values)
+            if existing_info:
+                existing_info.write(values)
+            else:
+                IncomingProductInfo.create(values)
 
         self.env.cr.commit()
 
