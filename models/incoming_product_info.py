@@ -1,15 +1,4 @@
-# models/incoming_product_info.py
 from odoo import models, fields, api
-
-class ProductTemplate(models.Model):
-    _inherit = 'product.template'
-
-    imported_info_count = fields.Integer(compute='_compute_imported_info_count', string='Imported Info Count')
-
-    @api.depends()
-    def _compute_imported_info_count(self):
-        for product in self:
-            product.imported_info_count = self.env['incoming.product.info'].search_count([('product_id', '=', product.id)])
 
 class IncomingProductInfo(models.Model):
     _name = 'incoming.product.info'
@@ -18,6 +7,8 @@ class IncomingProductInfo(models.Model):
     name = fields.Char(string='Name', compute='_compute_name', store=True)
     supplier_id = fields.Many2one('res.partner', string='Supplier', required=True)
     product_id = fields.Many2one('product.product', string='Product')
+    product_tmpl_id = fields.Many2one('product.template', related='product_id.product_tmpl_id', store=True)
+    supplier_product_code = fields.Char(string='Supplier Product Code', required=True)
     sn = fields.Char(string='Serial Number')
     mac1 = fields.Char(string='MAC1')
     mac2 = fields.Char(string='MAC2')
@@ -31,13 +22,34 @@ class IncomingProductInfo(models.Model):
     admin_password = fields.Char(string='Admin Password')
     wifi_password = fields.Char(string='WiFi Password')
     wifi_ssid = fields.Char(string='WiFi SSID')
-    product_id = fields.Many2one('product.product', string='Product', required=True)
     state = fields.Selection([
         ('pending', 'Pending'),
         ('received', 'Received'),
     ], string='Status', default='pending')
 
-    @api.depends('sn', 'model_no')
+    @api.depends('supplier_product_code', 'sn')
     def _compute_name(self):
         for record in self:
-            record.name = f"{record.model_no or ''} - {record.sn or ''}"
+            record.name = f"{record.supplier_product_code or ''} - {record.sn or ''}"
+
+class ProductTemplate(models.Model):
+    _inherit = 'product.template'
+
+    incoming_info_ids = fields.One2many('incoming.product.info', 'product_tmpl_id', string='Incoming Product Info')
+    incoming_info_count = fields.Integer(compute='_compute_incoming_info_count', string='Incoming Info Count')
+
+    @api.depends('incoming_info_ids')
+    def _compute_incoming_info_count(self):
+        for product in self:
+            product.incoming_info_count = len(product.incoming_info_ids)
+
+class SupplierInfo(models.Model):
+    _inherit = 'product.supplierinfo'
+
+    incoming_info_ids = fields.One2many('incoming.product.info', 'supplier_id', string='Incoming Product Info')
+    incoming_info_count = fields.Integer(compute='_compute_incoming_info_count', string='Incoming Info Count')
+
+    @api.depends('incoming_info_ids')
+    def _compute_incoming_info_count(self):
+        for supplier_info in self:
+            supplier_info.incoming_info_count = len(supplier_info.incoming_info_ids.filtered(lambda r: r.supplier_product_code == supplier_info.product_code))

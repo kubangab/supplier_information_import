@@ -42,19 +42,31 @@ class ImportProductInfo(models.TransientModel):
 
     def process_rows(self, rows):
         IncomingProductInfo = self.env['incoming.product.info']
-        Product = self.env['product.product']
+        SupplierInfo = self.env['product.supplierinfo']
 
         for row in rows:
-            product = Product.search([('default_code', '=', row.get('Model No.'))], limit=1)
-            if not product:
-                product = Product.create({
+            supplier_product_code = row.get('Supplier Product Code')
+            supplier_info = SupplierInfo.search([
+                ('name', '=', self.supplier_id.id),
+                ('product_code', '=', supplier_product_code)
+            ], limit=1)
+
+            if not supplier_info:
+                # Skapa en ny leverantörsinformation om den inte finns
+                product_tmpl = self.env['product.template'].create({
                     'name': row.get('Model No.'),
                     'default_code': row.get('Model No.'),
+                })
+                supplier_info = SupplierInfo.create({
+                    'name': self.supplier_id.id,
+                    'product_tmpl_id': product_tmpl.id,
+                    'product_code': supplier_product_code,
                 })
 
             values = {
                 'supplier_id': self.supplier_id.id,
-                'product_id': product.id,
+                'product_id': supplier_info.product_tmpl_id.product_variant_id.id,
+                'supplier_product_code': supplier_product_code,
                 'sn': row.get('SN'),
                 'mac1': row.get('MAC1'),
                 'mac2': row.get('MAC2'),
