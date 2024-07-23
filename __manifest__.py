@@ -1,6 +1,6 @@
 #  © opyright 2024 Lasse Larsson, Kubang AB
 {
-    'name': 'Product Information Import',
+    'name': 'Supplier Information Import',
     'version': '1.0',
     'category': 'Inventory',
     'summary': 'Import and manage incoming product information',
@@ -13,8 +13,9 @@ This module allows importing product information from various suppliers and mana
     'data': [
         'security/ir.model.access.csv',
         'views/incoming_product_info_views.xml',
-        'wizards/product_operations_views.xml',
         'views/menu_views.xml',
+        'views/product_views.xml',
+        'wizards/product_operations_views.xml',
     ],
     'installable': True,
     'application': False,

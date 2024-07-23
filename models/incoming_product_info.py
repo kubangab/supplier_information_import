@@ -1,6 +1,16 @@
 # models/incoming_product_info.py
 from odoo import models, fields, api
 
+class ProductTemplate(models.Model):
+    _inherit = 'product.template'
+
+    imported_info_count = fields.Integer(compute='_compute_imported_info_count', string='Imported Info Count')
+
+    @api.depends()
+    def _compute_imported_info_count(self):
+        for product in self:
+            product.imported_info_count = self.env['incoming.product.info'].search_count([('product_id', '=', product.id)])
+
 class IncomingProductInfo(models.Model):
     _name = 'incoming.product.info'
     _description = 'Incoming Product Information'
@@ -21,6 +31,7 @@ class IncomingProductInfo(models.Model):
     admin_password = fields.Char(string='Admin Password')
     wifi_password = fields.Char(string='WiFi Password')
     wifi_ssid = fields.Char(string='WiFi SSID')
+    product_id = fields.Many2one('product.product', string='Product', required=True)
     state = fields.Selection([
         ('pending', 'Pending'),
         ('received', 'Received'),
