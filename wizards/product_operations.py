@@ -1,7 +1,7 @@
-# wizards/product_operations.py
 import base64
 import csv
 import io
+import xlrd
 from odoo import models, fields, api, exceptions
 
 class ImportProductInfo(models.TransientModel):
@@ -17,12 +17,28 @@ class ImportProductInfo(models.TransientModel):
             raise exceptions.UserError('Please select a file to import.')
 
         file_content = base64.b64decode(self.file)
-        file_content = file_content.decode('utf-8')
         
-        reader = csv.DictReader(io.StringIO(file_content), delimiter='\t')
-        self.process_rows(reader)
+        if self.file_name.lower().endswith('.csv'):
+            self.process_csv(file_content)
+        elif self.file_name.lower().endswith(('.xls', '.xlsx')):
+            self.process_excel(file_content)
+        else:
+            raise exceptions.UserError('Unsupported file format. Please use CSV or Excel files.')
 
         return {'type': 'ir.actions.act_window_close'}
+
+    def process_csv(self, file_content):
+        csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
+        reader = csv.DictReader(csv_data, delimiter='\t')
+        self.process_rows(reader)
+
+    def process_excel(self, file_content):
+        workbook = xlrd.open_workbook(file_contents=file_content)
+        sheet = workbook.sheet_by_index(0)
+        header = [sheet.cell_value(0, col) for col in range(sheet.ncols)]
+        rows = [dict(zip(header, [sheet.cell_value(row, col) for col in range(sheet.ncols)]))
+                for row in range(1, sheet.nrows)]
+        self.process_rows(rows)
 
     def process_rows(self, rows):
         IncomingProductInfo = self.env['incoming.product.info']

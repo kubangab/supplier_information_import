@@ -9,6 +9,7 @@ This module allows importing product information from various suppliers and mana
     """,
     'author': 'Lasse Larsson, Kubang AB',
     'depends': ['base', 'product', 'stock'],
+    'license': 'LGPL-3',
     'data': [
         'security/ir.model.access.csv',
         'views/incoming_product_info_views.xml',
