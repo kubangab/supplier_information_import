@@ -22,8 +22,8 @@
                                 <tree editable="bottom">
                                     <field name="source_column"/>
                                     <field name="destination_field_name" widget="selection_create"/>
+                                    <field name="destination_field" widget="selection" optional="show"/>
                                     <field name="is_required"/>
-                                    <field name="destination_field" invisible="1"/>
                                     <field name="field_type" optional="show"/>
                                 </tree>
                             </field>

@@ -108,9 +108,8 @@ class ImportColumnMapping(models.Model):
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
                                         domain=[('model', '=', 'incoming.product.info')])
-    destination_field_name = fields.Char(string='Destination Field', translate=True)
     is_required = fields.Boolean(string='Required', default=False)
-    field_type = fields.Selection(selection='_get_field_types', string='Field Type')
+    field_type = fields.Char(string='Field Type', compute='_compute_field_type', store=True)
 
     @api.model
     def _get_field_types(self):
@@ -164,10 +163,25 @@ class ImportColumnMapping(models.Model):
                 self.destination_field = False
                 self.field_type = False
 
+    @api.depends('destination_field')
+    def _compute_field_type(self):
+        for record in self:
+            record.field_type = record.destination_field.ttype if record.destination_field else False
+
+    def name_get(self):
+        return [(record.id, record.destination_field.field_description) for record in self]
+    
+    @api.onchange('destination_field')
+    def _onchange_destination_field(self):
+        if self.destination_field:
+            self.field_type = self.destination_field.ttype
+        else:
+            self.field_type = False
+
     @api.model
-    def name_search(self, name='', args=None, operator='ilike', limit=100):
+    def _name_search(self, name, args=None, operator='ilike', limit=100, name_get_uid=None):
         args = args or []
+        domain = []
         if name:
-            args = [('field_description', operator, name)] + args
-        fields = self.env['ir.model.fields'].search([('model', '=', 'incoming.product.info')] + args, limit=limit)
-        return fields.name_get()
+            domain = [('field_description', operator, name)]
+        return self.env['ir.model.fields'].search(domain + [('model', '=', 'incoming.product.info')] + args, limit=limit).name_get()
