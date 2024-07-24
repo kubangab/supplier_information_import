@@ -2,7 +2,7 @@ import base64
 import csv
 import io
 import xlrd
-from odoo import models, fields, api, exceptions
+from odoo import models, fields, api, exceptions, _
 
 class ImportFormatConfig(models.Model):
     _name = 'import.format.config'
@@ -108,15 +108,16 @@ class ImportColumnMapping(models.Model):
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
                                         domain=[('model', '=', 'incoming.product.info')])
+    destination_field_name = fields.Char(string='Destination Field', translate=True)
     is_required = fields.Boolean(string='Required', default=False)
-    custom_label = fields.Char(string='Custom Label', translate=True)
 
     @api.onchange('destination_field')
     def _onchange_destination_field(self):
+        if self.destination_field:
+            # Remove ' (field.info)' from the field description
+            self.destination_field_name = self.destination_field.field_description.split(' (')[0]
         if self.destination_field.name in ['sn', 'model_no']:
             self.is_required = True
-        if not self.custom_label:
-            self.custom_label = self.destination_field.field_description
 
     def name_get(self):
-        return [(record.id, record.custom_label or record.destination_field.field_description) for record in self]
+        return [(record.id, record.destination_field_name or record.destination_field.field_description) for record in self]
