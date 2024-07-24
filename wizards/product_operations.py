@@ -54,6 +54,7 @@ class ImportProductInfo(models.TransientModel):
         IncomingProductInfo = self.env['incoming.product.info']
         SupplierInfo = self.env['product.supplierinfo']
         Product = self.env['product.product']
+        ProductTemplate = self.env['product.template']
 
         _logger.info(f"Config supplier_id: {config.supplier_id.id}")
         
@@ -82,33 +83,35 @@ class ImportProductInfo(models.TransientModel):
             if 'sn' not in values or 'model_no' not in values:
                 raise exceptions.UserError(_('Missing required fields: Serial Number or Model No. for row: %s') % row)
 
-            existing_info = IncomingProductInfo.search([
-                ('supplier_id', '=', config.supplier_id.id),
-                ('model_no', '=', values['model_no']),
-                ('sn', '=', values['sn'])
+            # First, search for existing supplier info
+            supplier_info = SupplierInfo.search([
+                ('name', '=', config.supplier_id.id),
+                ('product_code', '=', values['model_no'])
             ], limit=1)
 
-            _logger.info(f"Searching for Product with default_code={values['model_no']}")
-            product = Product.search([('default_code', '=', values['model_no'])], limit=1)
+            if supplier_info:
+                _logger.info(f"Found existing SupplierInfo for product_code={values['model_no']}")
+                product_tmpl = supplier_info.product_tmpl_id
+                product = Product.search([('product_tmpl_id', '=', product_tmpl.id)], limit=1)
+            else:
+                _logger.info(f"Searching for Product with default_code={values['model_no']}")
+                product = Product.search([('default_code', '=', values['model_no'])], limit=1)
 
             if not product:
                 _logger.info(f"Creating new product with default_code={values['model_no']}")
-                product = Product.create({
+                product_tmpl = ProductTemplate.create({
                     'name': values.get('model_no', 'New Product'),
                     'default_code': values['model_no'],
                     'type': 'product',
                 })
-
-            _logger.info(f"Searching for SupplierInfo with partner_id={config.supplier_id.id} and product_tmpl_id={product.product_tmpl_id.id}")
-            supplier_info = SupplierInfo.search([
-                ('partner_id', '=', config.supplier_id.id),
-                ('product_tmpl_id', '=', product.product_tmpl_id.id)
-            ], limit=1)
+                product = Product.create({
+                    'product_tmpl_id': product_tmpl.id,
+                })
 
             if not supplier_info:
                 _logger.info(f"Creating new SupplierInfo for product {product.id} and supplier {config.supplier_id.id}")
                 supplier_info = SupplierInfo.create({
-                    'partner_id': config.supplier_id.id,
+                    'name': config.supplier_id.id,
                     'product_tmpl_id': product.product_tmpl_id.id,
                     'product_code': values['model_no'],
                 })
@@ -116,6 +119,12 @@ class ImportProductInfo(models.TransientModel):
             values['supplier_id'] = config.supplier_id.id
             values['product_id'] = product.id
             values['supplier_product_code'] = supplier_info.product_code
+
+            existing_info = IncomingProductInfo.search([
+                ('supplier_id', '=', config.supplier_id.id),
+                ('model_no', '=', values['model_no']),
+                ('sn', '=', values['sn'])
+            ], limit=1)
 
             if existing_info:
                 _logger.info(f"Updating existing IncomingProductInfo {existing_info.id}")
