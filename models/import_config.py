@@ -109,79 +109,8 @@ class ImportColumnMapping(models.Model):
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
                                         domain=[('model', '=', 'incoming.product.info')])
     is_required = fields.Boolean(string='Required', default=False)
-    field_type = fields.Char(string='Field Type', compute='_compute_field_type', store=True)
 
-    @api.model
-    def _get_field_types(self):
-        return self.env['ir.model.fields']._fields['ttype'].selection
-
-    @api.model
-    def create(self, vals):
-        if 'destination_field_name' in vals:
-            vals = self._set_destination_field(vals)
-        return super(ImportColumnMapping, self).create(vals)
-
-    def write(self, vals):
-        if 'destination_field_name' in vals:
-            vals = self._set_destination_field(vals)
-        return super(ImportColumnMapping, self).write(vals)
-
-    def _set_destination_field(self, vals):
-        if vals.get('destination_field_name'):
-            field = self.env['ir.model.fields'].search([
-                ('model', '=', 'incoming.product.info'),
-                ('field_description', '=like', vals['destination_field_name'] + '%')
-            ], limit=1)
-            
-            if field:
-                vals['destination_field'] = field.id
-                vals['field_type'] = field.ttype
-            else:
-                # Create a new field if it doesn't exist
-                new_field = self.env['ir.model.fields'].create({
-                    'model': 'incoming.product.info',
-                    'name': vals['destination_field_name'].lower().replace(' ', '_'),
-                    'field_description': vals['destination_field_name'],
-                    'ttype': 'char',  # Default to char, can be changed later
-                })
-                vals['destination_field'] = new_field.id
-                vals['field_type'] = 'char'
-        
-        return vals
-
-    @api.onchange('destination_field_name')
-    def _onchange_destination_field_name(self):
-        if self.destination_field_name:
-            field = self.env['ir.model.fields'].search([
-                ('model', '=', 'incoming.product.info'),
-                ('field_description', '=like', self.destination_field_name + '%')
-            ], limit=1)
-            if field:
-                self.destination_field = field.id
-                self.field_type = field.ttype
-            else:
-                self.destination_field = False
-                self.field_type = False
-
-    @api.depends('destination_field')
-    def _compute_field_type(self):
-        for record in self:
-            record.field_type = record.destination_field.ttype if record.destination_field else False
-
-    def name_get(self):
-        return [(record.id, record.destination_field.field_description) for record in self]
-    
     @api.onchange('destination_field')
     def _onchange_destination_field(self):
-        if self.destination_field:
-            self.field_type = self.destination_field.ttype
-        else:
-            self.field_type = False
-
-    @api.model
-    def _name_search(self, name, args=None, operator='ilike', limit=100, name_get_uid=None):
-        args = args or []
-        domain = []
-        if name:
-            domain = [('field_description', operator, name)]
-        return self.env['ir.model.fields'].search(domain + [('model', '=', 'incoming.product.info')] + args, limit=limit).name_get()
+        if self.destination_field.name in ['sn', 'model_no']:
+            self.is_required = True

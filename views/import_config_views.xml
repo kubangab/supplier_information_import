@@ -21,9 +21,8 @@
                             <field name="column_mapping">
                                 <tree editable="bottom">
                                     <field name="source_column"/>
-                                    <field name="destination_field" widget="selection"/>
+                                    <field name="destination_field"/>
                                     <field name="is_required"/>
-                                    <field name="field_type" optional="show"/>
                                 </tree>
                             </field>
                         </page>
