@@ -85,7 +85,7 @@ class ImportProductInfo(models.TransientModel):
 
             # First, search for existing supplier info
             supplier_info = SupplierInfo.search([
-                ('name', '=', config.supplier_id.id),
+                ('partner_id', '=', config.supplier_id.id),
                 ('product_code', '=', values['model_no'])
             ], limit=1)
 
@@ -111,7 +111,7 @@ class ImportProductInfo(models.TransientModel):
             if not supplier_info:
                 _logger.info(f"Creating new SupplierInfo for product {product.id} and supplier {config.supplier_id.id}")
                 supplier_info = SupplierInfo.create({
-                    'name': config.supplier_id.id,
+                    'partner_id': config.supplier_id.id,
                     'product_tmpl_id': product.product_tmpl_id.id,
                     'product_code': values['model_no'],
                 })
