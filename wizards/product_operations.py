@@ -1,8 +1,8 @@
+from odoo import models, fields, api, exceptions, _
 import base64
 import csv
 import io
 import xlrd
-from odoo import models, fields, api, exceptions, _
 
 class ImportProductInfo(models.TransientModel):
     _name = 'import.product.info'
@@ -76,7 +76,7 @@ class ImportProductInfo(models.TransientModel):
             ], limit=1)
 
             supplier_info = SupplierInfo.search([
-                ('name', '=', config.supplier_id.id),  # Använd 'name' för att matcha leverantören
+                ('name', '=', config.supplier_id.id),
                 ('product_code', '=', values['model_no'])
             ], limit=1)
 
@@ -86,7 +86,7 @@ class ImportProductInfo(models.TransientModel):
                     'default_code': values.get('model_no', 'New Product'),
                 })
                 supplier_info = SupplierInfo.create({
-                    'name': config.supplier_id.id,  # Använd 'name' för att sätta leverantören
+                    'name': config.supplier_id.id,
                     'product_tmpl_id': product_tmpl.id,
                     'product_code': values['model_no'],
                 })
