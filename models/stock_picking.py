@@ -18,27 +18,35 @@ class StockPicking(models.Model):
                 ('supplier_id', '=', picking.partner_id.id)
             ])
 
-            for pending in pending_products:
-                move = picking.move_ids.filtered(lambda m: m.product_id.id == pending.product_id.id)
-                if not move:
-                    raise UserError(_("Product %s is not in the transfer lines.") % pending.product_id.name)
+            products_added = []
+            for move in picking.move_ids:
+                pending = pending_products.filtered(lambda p: p.product_id.id == move.product_id.id)
+                
+                for p in pending:
+                    move_line = StockMoveLine.create({
+                        'move_id': move.id,
+                        'product_id': p.product_id.id,
+                        'product_uom_id': p.product_id.uom_id.id,
+                        'location_id': move.location_id.id,
+                        'location_dest_id': move.location_dest_id.id,
+                        'picking_id': picking.id,
+                        'lot_name': p.sn,
+                        'qty_done': 1,
+                    })
 
-                move_line = StockMoveLine.create({
-                    'move_id': move.id,
-                    'product_id': pending.product_id.id,
-                    'product_uom_id': pending.product_id.uom_id.id,
-                    'location_id': move.location_id.id,
-                    'location_dest_id': move.location_dest_id.id,
-                    'picking_id': picking.id,
-                    'lot_name': pending.sn,
-                    'qty_done': 1,
-                })
+                    p.write({
+                        'state': 'received',
+                        'stock_picking_id': picking.id
+                    })
+                    
+                    products_added.append(p.product_id.name)
 
-                pending.write({
-                    'state': 'received',
-                    'stock_picking_id': picking.id
-                })
-
+            if products_added:
+                message = _("Added quantities for the following products: %s") % ", ".join(products_added)
+            else:
+                message = _("No pending products found matching the transfer lines.")
+            
+            picking.message_post(body=message)
             picking.action_assign()
 
         return True
