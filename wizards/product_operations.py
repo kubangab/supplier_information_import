@@ -1,12 +1,3 @@
-from odoo import models, fields, api, exceptions, _
-import base64
-import csv
-import io
-import xlrd
-import logging
-
-_logger = logging.getLogger(__name__)
-
 import logging
 from odoo import models, fields, api, exceptions, _
 import base64
@@ -65,10 +56,10 @@ class ImportProductInfo(models.TransientModel):
         Product = self.env['product.product']
 
         _logger.info(f"Config supplier_id: {config.supplier_id.id}")
-    
+        
         supplier = self.env['res.partner'].browse(config.supplier_id.id)
         _logger.info(f"Supplier {supplier.name} (ID: {supplier.id}) has supplier_rank: {supplier.supplier_rank}")
-    
+        
         if supplier.supplier_rank == 0:
             supplier.write({'supplier_rank': 1})
             _logger.info(f"Updated supplier_rank for {supplier.name} to 1")
@@ -116,7 +107,7 @@ class ImportProductInfo(models.TransientModel):
 
             if not supplier_info:
                 _logger.info(f"Creating new SupplierInfo for product {product.id} and supplier {config.supplier_id.id}")
-                SupplierInfo.create({
+                supplier_info = SupplierInfo.create({
                     'partner_id': config.supplier_id.id,
                     'product_tmpl_id': product.product_tmpl_id.id,
                     'product_code': values['model_no'],
@@ -124,6 +115,7 @@ class ImportProductInfo(models.TransientModel):
 
             values['supplier_id'] = config.supplier_id.id
             values['product_id'] = product.id
+            values['supplier_product_code'] = supplier_info.product_code
 
             if existing_info:
                 _logger.info(f"Updating existing IncomingProductInfo {existing_info.id}")
