@@ -67,33 +67,64 @@ class StockPicking(models.Model):
         workbook = xlsxwriter.Workbook(output)
         worksheet = workbook.add_worksheet('Product Info')
 
-        # Add headers
-        headers = ['Product', 'Quantity', 'Serial Number', 'Supplier', 'Supplier Product Code', 'MAC1', 'MAC2', 'IMEI', 'AppKey', 'DevEUI']
-        for col, header in enumerate(headers):
-            worksheet.write(0, col, header)
+        # Get fields from incoming.product.info model
+        IncomingProductInfo = self.env['incoming.product.info']
+        info_fields = IncomingProductInfo._fields
 
-        # Add product data
-        for row, move_line in enumerate(self.move_line_ids, start=1):
+        # Define base headers and get additional headers from incoming.product.info
+        base_headers = ['SKU', 'Product', 'Quantity', 'Serial Number']
+        additional_headers = [
+            field.capitalize() 
+            for field in info_fields 
+            if field not in ['id', 'create_uid', 'create_date', 'write_uid', 'write_date', 'display_name', 'supplier_id', 'product_id', 'stock_picking_id', 'state']
+        ]
+        all_headers = base_headers + additional_headers
+
+        # Initialize a dictionary to keep track of which headers are needed
+        headers_needed = {header: False for header in all_headers}
+        for header in base_headers:
+            headers_needed[header] = True
+
+        # Collect data and determine which headers are needed
+        data = []
+        for move_line in self.move_line_ids:
             product = move_line.product_id
-            incoming_info = self.env['incoming.product.info'].search([
+            incoming_info = IncomingProductInfo.search([
                 ('product_id', '=', product.id),
                 ('sn', '=', move_line.lot_id.name)
             ], limit=1)
 
-            worksheet.write(row, 0, product.name)
-            worksheet.write(row, 1, move_line.qty_done)
-            worksheet.write(row, 2, move_line.lot_id.name if move_line.lot_id else '')
-            worksheet.write(row, 3, self.partner_id.name)
-            worksheet.write(row, 4, incoming_info.supplier_product_code if incoming_info else '')
-            worksheet.write(row, 5, incoming_info.mac1 if incoming_info else '')
-            worksheet.write(row, 6, incoming_info.mac2 if incoming_info else '')
-            worksheet.write(row, 7, incoming_info.imei if incoming_info else '')
-            worksheet.write(row, 8, incoming_info.app_key if incoming_info else '')
-            worksheet.write(row, 9, incoming_info.dev_eui if incoming_info else '')
+            row_data = {
+                'SKU': product.default_code or '',
+                'Product': product.name,
+                'Quantity': move_line.qty_done,
+                'Serial Number': move_line.lot_id.name if move_line.lot_id else '',
+            }
+
+            if incoming_info:
+                for field in additional_headers:
+                    value = getattr(incoming_info, field.lower(), False)
+                    if value:
+                        headers_needed[field] = True
+                        row_data[field] = value
+
+            data.append(row_data)
+
+        # Create the list of headers that are actually needed
+        headers = [header for header in all_headers if headers_needed[header]]
+
+        # Write headers
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header)
+
+        # Write data
+        for row, row_data in enumerate(data, start=1):
+            for col, header in enumerate(headers):
+                worksheet.write(row, col, row_data.get(header, ''))
 
         workbook.close()
         return output.getvalue()
-
+    
     def send_excel_report_email(self, excel_data):
         attachment = self.env['ir.attachment'].create({
             'name': f'Product_Info_{self.name}.xlsx',
