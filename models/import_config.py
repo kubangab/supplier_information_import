@@ -108,3 +108,9 @@ class ImportColumnMapping(models.Model):
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
                                         domain=[('model', '=', 'incoming.product.info')])
+    is_required = fields.Boolean(string='Required', default=False)
+
+    @api.onchange('destination_field')
+    def _onchange_destination_field(self):
+        if self.destination_field.name in ['supplier_product_code', 'sn']:
+            self.is_required = True

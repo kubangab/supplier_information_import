@@ -53,29 +53,25 @@ class ImportProductInfo(models.TransientModel):
 
         for row in rows:
             values = {}
+            missing_required_fields = []
+
             for mapping in config.column_mapping:
                 source_value = row.get(mapping.source_column)
-                if source_value and mapping.destination_field:
-                    values[mapping.destination_field.name] = source_value
+                if mapping.destination_field:
+                    if mapping.is_required and not source_value:
+                        missing_required_fields.append(mapping.destination_field.field_description)
+                    if source_value:
+                        values[mapping.destination_field.name] = source_value
 
-            # Check for required fields
-            if 'supplier_product_code' not in values:
-                # Try to find a mapping for 'supplier_product_code'
-                supplier_product_code_mapping = config.column_mapping.filtered(lambda m: m.destination_field.name == 'supplier_product_code')
-                if supplier_product_code_mapping:
-                    values['supplier_product_code'] = row.get(supplier_product_code_mapping.source_column)
-
-            if 'sn' not in values:
-                # Try to find a mapping for 'sn' (Serial Number)
-                sn_mapping = config.column_mapping.filtered(lambda m: m.destination_field.name == 'sn')
-                if sn_mapping:
-                    values['sn'] = row.get(sn_mapping.source_column)
+            if missing_required_fields:
+                raise exceptions.UserError(f'Missing required fields: {", ".join(missing_required_fields)} for row: {row}')
 
             if 'supplier_product_code' not in values or 'sn' not in values:
                 raise exceptions.UserError(f'Missing required fields: Supplier Product Code or Serial Number for row: {row}')
 
             existing_info = IncomingProductInfo.search([
                 ('supplier_id', '=', config.supplier_id.id),
+                ('supplier_product_code', '=', values['supplier_product_code']),
                 ('sn', '=', values['sn'])
             ], limit=1)
 
@@ -107,7 +103,7 @@ class ImportProductInfo(models.TransientModel):
                 IncomingProductInfo.create(values)
 
         self.env.cr.commit()
-
+        
 class ReceiveProducts(models.TransientModel):
     _name = 'receive.products.wizard'
     _description = 'Receive Products Wizard'
