@@ -7,6 +7,15 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+import logging
+from odoo import models, fields, api, exceptions, _
+import base64
+import csv
+import io
+import xlrd
+
+_logger = logging.getLogger(__name__)
+
 class ImportProductInfo(models.TransientModel):
     _name = 'import.product.info'
     _description = 'Import Product Information'
@@ -56,7 +65,14 @@ class ImportProductInfo(models.TransientModel):
         Product = self.env['product.product']
 
         _logger.info(f"Config supplier_id: {config.supplier_id.id}")
-    
+        
+        supplier = self.env['res.partner'].browse(config.supplier_id.id)
+        _logger.info(f"Supplier {supplier.name} (ID: {supplier.id}) has supplier_rank: {supplier.supplier_rank}")
+        
+        if supplier.supplier_rank == 0:
+            supplier.write({'supplier_rank': 1})
+            _logger.info(f"Updated supplier_rank for {supplier.name} to 1")
+
         for row in rows:
             values = {}
             missing_required_fields = []
