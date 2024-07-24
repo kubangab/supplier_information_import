@@ -3,6 +3,9 @@ import base64
 import csv
 import io
 import xlrd
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class ImportProductInfo(models.TransientModel):
     _name = 'import.product.info'
@@ -50,7 +53,10 @@ class ImportProductInfo(models.TransientModel):
     def process_rows(self, rows, config):
         IncomingProductInfo = self.env['incoming.product.info']
         SupplierInfo = self.env['product.supplierinfo']
+        Product = self.env['product.product']
 
+        _logger.info(f"Config supplier_id: {config.supplier_id.id}")
+    
         for row in rows:
             values = {}
             missing_required_fields = []
@@ -75,31 +81,39 @@ class ImportProductInfo(models.TransientModel):
                 ('sn', '=', values['sn'])
             ], limit=1)
 
+            _logger.info(f"Searching for Product with default_code={values['model_no']}")
+            product = Product.search([('default_code', '=', values['model_no'])], limit=1)
+
+            if not product:
+                _logger.info(f"Creating new product with default_code={values['model_no']}")
+                product = Product.create({
+                    'name': values.get('model_no', 'New Product'),
+                    'default_code': values['model_no'],
+                    'type': 'product',
+                })
+
+            _logger.info(f"Searching for SupplierInfo with name={config.supplier_id.id} and product_tmpl_id={product.product_tmpl_id.id}")
             supplier_info = SupplierInfo.search([
                 ('name', '=', config.supplier_id.id),
-                ('product_code', '=', values['model_no'])
+                ('product_tmpl_id', '=', product.product_tmpl_id.id)
             ], limit=1)
 
             if not supplier_info:
-                product_tmpl = self.env['product.template'].create({
-                    'name': values.get('model_no', 'New Product'),
-                    'default_code': values.get('model_no', 'New Product'),
-                })
-                supplier_info = SupplierInfo.create({
+                _logger.info(f"Creating new SupplierInfo for product {product.id} and supplier {config.supplier_id.id}")
+                SupplierInfo.create({
                     'name': config.supplier_id.id,
-                    'product_tmpl_id': product_tmpl.id,
+                    'product_tmpl_id': product.product_tmpl_id.id,
                     'product_code': values['model_no'],
                 })
-                product = product_tmpl.product_variant_id
-            else:
-                product = supplier_info.product_tmpl_id.product_variant_id
 
             values['supplier_id'] = config.supplier_id.id
             values['product_id'] = product.id
 
             if existing_info:
+                _logger.info(f"Updating existing IncomingProductInfo {existing_info.id}")
                 existing_info.write(values)
             else:
+                _logger.info(f"Creating new IncomingProductInfo")
                 IncomingProductInfo.create(values)
 
         self.env.cr.commit()
