@@ -10,6 +10,11 @@
                         attrs="{'invisible': [('state', 'not in', ['assigned', 'partially_available'])]}"
                         groups="stock.group_stock_user"/>
             </button>
+            <button name="action_generate_and_send_excel" 
+                string="Generate and Send Excel" 
+                type="object" 
+                attrs="{'invisible': [('state', '!=', 'done')]}"
+                groups="stock.group_stock_user"/>
         </field>
     </record>
 </odoo>
