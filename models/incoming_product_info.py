@@ -22,6 +22,7 @@ class IncomingProductInfo(models.Model):
     admin_password = fields.Char(string='Admin Password')
     wifi_password = fields.Char(string='WiFi Password')
     wifi_ssid = fields.Char(string='WiFi SSID')
+    stock_picking_id = fields.Many2one('stock.picking', string='Related Stock Picking')
     state = fields.Selection([
         ('pending', 'Pending'),
         ('received', 'Received'),
