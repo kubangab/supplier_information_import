@@ -164,10 +164,10 @@ class ImportColumnMapping(models.Model):
                 self.destination_field = False
                 self.field_type = False
 
-    def name_get(self):
-        return [(record.id, record.destination_field_name or record.destination_field.field_description) for record in self]
-
     @api.model
-    def get_available_fields(self):
-        fields_data = self.env['import.format.config'].get_incoming_product_info_fields()
-        return [(field, data['string']) for field, data in fields_data.items()]
+    def name_search(self, name='', args=None, operator='ilike', limit=100):
+        args = args or []
+        if name:
+            args = [('field_description', operator, name)] + args
+        fields = self.env['ir.model.fields'].search([('model', '=', 'incoming.product.info')] + args, limit=limit)
+        return fields.name_get()
