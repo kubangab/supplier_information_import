@@ -17,11 +17,16 @@
         <field name="model">import.format.config</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_load_sample_file" string="Load Sample File" type="object" class="oe_highlight" attrs="{'invisible': [('sample_file', '=', False)]}"/>
+                </header>
                 <sheet>
                     <group>
                         <field name="name"/>
                         <field name="file_type"/>
                         <field name="supplier_id"/>
+                        <field name="sample_file" filename="sample_file_name"/>
+                        <field name="sample_file_name" invisible="1"/>
                     </group>
                     <notebook>
                         <page string="Column Mappings">
