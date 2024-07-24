@@ -73,57 +73,43 @@ class StockPicking(models.Model):
 
         # Define base headers and get additional headers from incoming.product.info
         base_headers = ['SKU', 'Product', 'Quantity', 'Serial Number']
+        excluded_fields = ['id', 'create_uid', 'create_date', 'write_uid', 'write_date', 'display_name', 
+                           'supplier_id', 'product_id', 'stock_picking_id', 'state', 'sn', 'name', 
+                           'supplier_product_code', 'product_tmpl_id', '__last_update']
         additional_headers = [
             field.capitalize() 
             for field in info_fields 
-            if field not in ['id', 'create_uid', 'create_date', 'write_uid', 'write_date', 'display_name', 'supplier_id', 'product_id', 'stock_picking_id', 'state']
+            if field not in excluded_fields and field not in [h.lower() for h in base_headers]
         ]
         all_headers = base_headers + additional_headers
 
-        # Initialize a dictionary to keep track of which headers are needed
-        headers_needed = {header: False for header in all_headers}
-        for header in base_headers:
-            headers_needed[header] = True
+        # Write headers
+        for col, header in enumerate(all_headers):
+            worksheet.write(0, col, header)
 
-        # Collect data and determine which headers are needed
-        data = []
-        for move_line in self.move_line_ids:
+        # Collect and write data
+        for row, move_line in enumerate(self.move_line_ids, start=1):
             product = move_line.product_id
             incoming_info = IncomingProductInfo.search([
                 ('product_id', '=', product.id),
                 ('sn', '=', move_line.lot_id.name)
             ], limit=1)
 
-            row_data = {
-                'SKU': product.default_code or '',
-                'Product': product.name or '',
-                'Quantity': move_line.qty_done or 0,
-                'Serial Number': move_line.lot_id.name if move_line.lot_id else '',
-            }
+            col = 0
+            # Write base data
+            worksheet.write(row, col, product.default_code or ''); col += 1
+            worksheet.write(row, col, product.name or ''); col += 1
+            worksheet.write(row, col, move_line.qty_done or 0); col += 1
+            worksheet.write(row, col, move_line.lot_id.name if move_line.lot_id else ''); col += 1
 
+            # Write additional data from incoming_info
             if incoming_info:
                 for field in additional_headers:
                     value = getattr(incoming_info, field.lower(), False)
-                    if value:
-                        headers_needed[field] = True
-                        row_data[field] = str(value) if value else ''
-
-            data.append(row_data)
-
-        # Create the list of headers that are actually needed
-        headers = [header for header in all_headers if headers_needed[header]]
-
-        # Write headers
-        for col, header in enumerate(headers):
-            worksheet.write(0, col, header)
-
-        # Write data
-        for row, row_data in enumerate(data, start=1):
-            for col, header in enumerate(headers):
-                value = row_data.get(header, '')
-                if isinstance(value, models.Model):
-                    value = value.name if hasattr(value, 'name') else str(value)
-                worksheet.write(row, col, value)
+                    if isinstance(value, models.Model):
+                        value = value.name if hasattr(value, 'name') else str(value)
+                    worksheet.write(row, col, str(value) if value else '')
+                    col += 1
 
         workbook.close()
         return output.getvalue()
