@@ -111,11 +111,46 @@ class ImportColumnMapping(models.Model):
     destination_field_name = fields.Char(string='Destination Field', translate=True)
     is_required = fields.Boolean(string='Required', default=False)
 
+    @api.model
+    def create(self, vals):
+        if 'destination_field' in vals:
+            vals = self._set_destination_field_name(vals)
+        return super(ImportColumnMapping, self).create(vals)
+
+    def write(self, vals):
+        if 'destination_field' in vals:
+            vals = self._set_destination_field_name(vals)
+        return super(ImportColumnMapping, self).write(vals)
+
+    def _set_destination_field_name(self, vals):
+        if vals.get('destination_field'):
+            field = self.env['ir.model.fields'].browse(vals['destination_field'])
+            english_name = field.with_context(lang='en_US').field_description.split(' (')[0]
+            
+            # Set the English name
+            if 'destination_field_name' not in vals or not vals['destination_field_name']:
+                vals['destination_field_name'] = english_name
+            
+            # Set translations for other languages
+            if self.env.context.get('install_mode'):
+                # Only set translations during installation to avoid overwriting user changes
+                translations = self.env['ir.translation']
+                for lang in self.env['res.lang'].search([('code', '!=', 'en_US')]):
+                    translations |= translations.new({
+                        'lang': lang.code,
+                        'type': 'model',
+                        'name': f'{self._name},destination_field_name',
+                        'res_id': self.id,
+                        'src': english_name,
+                        'value': english_name,
+                    })
+                translations.sudo().create(translations.copy_data())
+        return vals
+
     @api.onchange('destination_field')
     def _onchange_destination_field(self):
         if self.destination_field:
-            # Remove ' (field.info)' from the field description
-            self.destination_field_name = self.destination_field.field_description.split(' (')[0]
+            self.destination_field_name = self.destination_field.with_context(lang='en_US').field_description.split(' (')[0]
         if self.destination_field.name in ['sn', 'model_no']:
             self.is_required = True
 
