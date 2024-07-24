@@ -32,6 +32,8 @@
             <form>
                 <group>
                     <field name="incoming_product_ids" widget="many2many_tags"/>
+                    <field name="lot_creation_method" widget="radio"/>
+                    <field name="manual_lot_number" attrs="{'invisible': [('lot_creation_method', '!=', 'manual')], 'required': [('lot_creation_method', '=', 'manual')]}"/>
                 </group>
                 <footer>
                     <button name="action_receive_products" string="Receive Products" type="object" class="btn-primary"/>
