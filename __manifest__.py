@@ -18,6 +18,7 @@ This module allows importing product information from various suppliers and mana
         'views/menu_views.xml',
         'views/stock_picking_views.xml',
         'wizards/product_operations_views.xml',
+        'data/email_templates.xml',
     ],
     'installable': True,
     'application': False,
