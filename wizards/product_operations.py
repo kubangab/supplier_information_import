@@ -47,62 +47,62 @@ class ImportProductInfo(models.TransientModel):
             for row in range(1, sheet.nrows)
         ]
 
-    def process_rows(self, rows, config):
-        IncomingProductInfo = self.env['incoming.product.info']
-        SupplierInfo = self.env['product.supplierinfo']
+def process_rows(self, rows, config):
+    IncomingProductInfo = self.env['incoming.product.info']
+    SupplierInfo = self.env['product.supplierinfo']
 
-        for row in rows:
-            values = {}
-            missing_required_fields = []
+    for row in rows:
+        values = {}
+        missing_required_fields = []
 
-            for mapping in config.column_mapping:
-                source_value = row.get(mapping.source_column)
-                if mapping.destination_field:
-                    if mapping.is_required and not source_value:
-                        missing_required_fields.append(mapping.custom_label or mapping.destination_field.field_description)
-                    if source_value:
-                        values[mapping.destination_field.name] = source_value
+        for mapping in config.column_mapping:
+            source_value = row.get(mapping.source_column)
+            if mapping.destination_field:
+                if mapping.is_required and not source_value:
+                    missing_required_fields.append(mapping.custom_label or mapping.destination_field.field_description)
+                if source_value:
+                    values[mapping.destination_field.name] = source_value
 
-            if missing_required_fields:
-                raise exceptions.UserError(_('Missing required fields: %s for row: %s') % (", ".join(missing_required_fields), row))
+        if missing_required_fields:
+            raise exceptions.UserError(_('Missing required fields: %s for row: %s') % (", ".join(missing_required_fields), row))
 
-            if 'sn' not in values or 'model_no' not in values:
-                raise exceptions.UserError(_('Missing required fields: Serial Number or Model No. for row: %s') % row)
+        if 'sn' not in values or 'model_no' not in values:
+            raise exceptions.UserError(_('Missing required fields: Serial Number or Model No. for row: %s') % row)
 
-            existing_info = IncomingProductInfo.search([
-                ('supplier_id', '=', config.supplier_id.id),
-                ('model_no', '=', values['model_no']),
-                ('sn', '=', values['sn'])
-            ], limit=1)
+        existing_info = IncomingProductInfo.search([
+            ('supplier_id', '=', config.supplier_id.id),
+            ('model_no', '=', values['model_no']),
+            ('sn', '=', values['sn'])
+        ], limit=1)
 
-            supplier_info = SupplierInfo.search([
-                ('name', '=', config.supplier_id.id),
-                ('product_code', '=', values['model_no'])
-            ], limit=1)
+        supplier_info = SupplierInfo.search([
+            ('name', '=', config.supplier_id.id),  # Använd 'name' för att matcha leverantören
+            ('product_code', '=', values['model_no'])
+        ], limit=1)
 
-            if not supplier_info:
-                product_tmpl = self.env['product.template'].create({
-                    'name': values.get('model_no', 'New Product'),
-                    'default_code': values.get('model_no', 'New Product'),
-                })
-                supplier_info = SupplierInfo.create({
-                    'name': config.supplier_id.id,
-                    'product_tmpl_id': product_tmpl.id,
-                    'product_code': values['model_no'],
-                })
-                product = product_tmpl.product_variant_id
-            else:
-                product = supplier_info.product_tmpl_id.product_variant_id
+        if not supplier_info:
+            product_tmpl = self.env['product.template'].create({
+                'name': values.get('model_no', 'New Product'),
+                'default_code': values.get('model_no', 'New Product'),
+            })
+            supplier_info = SupplierInfo.create({
+                'name': config.supplier_id.id,  # Använd 'name' för att sätta leverantören
+                'product_tmpl_id': product_tmpl.id,
+                'product_code': values['model_no'],
+            })
+            product = product_tmpl.product_variant_id
+        else:
+            product = supplier_info.product_tmpl_id.product_variant_id
 
-            values['supplier_id'] = config.supplier_id.id
-            values['product_id'] = product.id
+        values['supplier_id'] = config.supplier_id.id
+        values['product_id'] = product.id
 
-            if existing_info:
-                existing_info.write(values)
-            else:
-                IncomingProductInfo.create(values)
+        if existing_info:
+            existing_info.write(values)
+        else:
+            IncomingProductInfo.create(values)
 
-        self.env.cr.commit()
+    self.env.cr.commit()
 
 class ReceiveProducts(models.TransientModel):
     _name = 'receive.products.wizard'
