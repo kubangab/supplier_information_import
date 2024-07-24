@@ -109,8 +109,14 @@ class ImportColumnMapping(models.Model):
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
                                         domain=[('model', '=', 'incoming.product.info')])
     is_required = fields.Boolean(string='Required', default=False)
+    custom_label = fields.Char(string='Custom Label', translate=True)
 
     @api.onchange('destination_field')
     def _onchange_destination_field(self):
-        if self.destination_field.name in ['supplier_product_code', 'sn']:
+        if self.destination_field.name in ['sn', 'model_no']:
             self.is_required = True
+        if not self.custom_label:
+            self.custom_label = self.destination_field.field_description
+
+    def name_get(self):
+        return [(record.id, record.custom_label or record.destination_field.field_description) for record in self]

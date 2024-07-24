@@ -2,7 +2,7 @@ import base64
 import csv
 import io
 import xlrd
-from odoo import models, fields, api, exceptions
+from odoo import models, fields, api, exceptions, _
 
 class ImportProductInfo(models.TransientModel):
     _name = 'import.product.info'
@@ -14,11 +14,11 @@ class ImportProductInfo(models.TransientModel):
 
     def import_file(self):
         if not self.file:
-            raise exceptions.UserError('Please select a file to import.')
+            raise exceptions.UserError(_('Please select a file to import.'))
 
         config = self.import_config_id
         if not config:
-            raise exceptions.UserError('Please select an import configuration.')
+            raise exceptions.UserError(_('Please select an import configuration.'))
 
         file_content = base64.b64decode(self.file)
         
@@ -27,7 +27,7 @@ class ImportProductInfo(models.TransientModel):
         elif config.file_type == 'excel':
             rows = self.process_excel(file_content)
         else:
-            raise exceptions.UserError('Unsupported file format.')
+            raise exceptions.UserError(_('Unsupported file format.'))
 
         self.process_rows(rows, config)
 
@@ -59,25 +59,25 @@ class ImportProductInfo(models.TransientModel):
                 source_value = row.get(mapping.source_column)
                 if mapping.destination_field:
                     if mapping.is_required and not source_value:
-                        missing_required_fields.append(mapping.destination_field.field_description)
+                        missing_required_fields.append(mapping.custom_label or mapping.destination_field.field_description)
                     if source_value:
                         values[mapping.destination_field.name] = source_value
 
             if missing_required_fields:
-                raise exceptions.UserError(f'Missing required fields: {", ".join(missing_required_fields)} for row: {row}')
+                raise exceptions.UserError(_('Missing required fields: %s for row: %s') % (", ".join(missing_required_fields), row))
 
-            if 'supplier_product_code' not in values or 'sn' not in values:
-                raise exceptions.UserError(f'Missing required fields: Supplier Product Code or Serial Number for row: {row}')
+            if 'sn' not in values or 'model_no' not in values:
+                raise exceptions.UserError(_('Missing required fields: Serial Number or Model No. for row: %s') % row)
 
             existing_info = IncomingProductInfo.search([
                 ('supplier_id', '=', config.supplier_id.id),
-                ('supplier_product_code', '=', values['supplier_product_code']),
+                ('model_no', '=', values['model_no']),
                 ('sn', '=', values['sn'])
             ], limit=1)
 
             supplier_info = SupplierInfo.search([
                 ('name', '=', config.supplier_id.id),
-                ('product_code', '=', values['supplier_product_code'])
+                ('product_code', '=', values['model_no'])
             ], limit=1)
 
             if not supplier_info:
@@ -88,7 +88,7 @@ class ImportProductInfo(models.TransientModel):
                 supplier_info = SupplierInfo.create({
                     'name': config.supplier_id.id,
                     'product_tmpl_id': product_tmpl.id,
-                    'product_code': values['supplier_product_code'],
+                    'product_code': values['model_no'],
                 })
                 product = product_tmpl.product_variant_id
             else:
@@ -103,7 +103,7 @@ class ImportProductInfo(models.TransientModel):
                 IncomingProductInfo.create(values)
 
         self.env.cr.commit()
-        
+
 class ReceiveProducts(models.TransientModel):
     _name = 'receive.products.wizard'
     _description = 'Receive Products Wizard'
