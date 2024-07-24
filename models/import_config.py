@@ -21,7 +21,7 @@ class ImportFormatConfig(models.Model):
     @api.model
     def get_incoming_product_info_fields(self):
         return self.env['incoming.product.info'].fields_get()
-
+    
     def action_load_sample_file(self):
         self.ensure_one()
         if not self.sample_file:
@@ -118,55 +118,56 @@ class ImportColumnMapping(models.Model):
 
     @api.model
     def create(self, vals):
-        if 'destination_field' in vals:
-            vals = self._set_destination_field_name(vals)
+        if 'destination_field_name' in vals:
+            vals = self._set_destination_field(vals)
         return super(ImportColumnMapping, self).create(vals)
 
     def write(self, vals):
-        if 'destination_field' in vals:
-            vals = self._set_destination_field_name(vals)
+        if 'destination_field_name' in vals:
+            vals = self._set_destination_field(vals)
         return super(ImportColumnMapping, self).write(vals)
 
-    def _set_destination_field_name(self, vals):
-        if vals.get('destination_field'):
-            field = self.env['ir.model.fields'].browse(vals['destination_field'])
-            english_name = field.with_context(lang='en_US').field_description.split(' (')[0]
+    def _set_destination_field(self, vals):
+        if vals.get('destination_field_name'):
+            field = self.env['ir.model.fields'].search([
+                ('model', '=', 'incoming.product.info'),
+                ('field_description', '=like', vals['destination_field_name'] + '%')
+            ], limit=1)
             
-            if not vals.get('destination_field_name'):
-                vals['destination_field_name'] = english_name
-            
-            vals['field_type'] = field.ttype
-            
-            if self.env.context.get('install_mode'):
-                translations = self.env['ir.translation']
-                for lang in self.env['res.lang'].search([('code', '!=', 'en_US')]):
-                    translations |= translations.new({
-                        'lang': lang.code,
-                        'type': 'model',
-                        'name': f'{self._name},destination_field_name',
-                        'res_id': self.id,
-                        'src': english_name,
-                        'value': english_name,
-                    })
-                translations.sudo().create(translations.copy_data())
+            if field:
+                vals['destination_field'] = field.id
+                vals['field_type'] = field.ttype
+            else:
+                # Create a new field if it doesn't exist
+                new_field = self.env['ir.model.fields'].create({
+                    'model': 'incoming.product.info',
+                    'name': vals['destination_field_name'].lower().replace(' ', '_'),
+                    'field_description': vals['destination_field_name'],
+                    'ttype': 'char',  # Default to char, can be changed later
+                })
+                vals['destination_field'] = new_field.id
+                vals['field_type'] = 'char'
+        
         return vals
 
-    @api.onchange('destination_field')
-    def _onchange_destination_field(self):
-        if self.destination_field:
-            self.destination_field_name = self.destination_field.with_context(lang='en_US').field_description.split(' (')[0]
-            self.field_type = self.destination_field.ttype
-        if self.destination_field.name in ['sn', 'model_no']:
-            self.is_required = True
+    @api.onchange('destination_field_name')
+    def _onchange_destination_field_name(self):
+        if self.destination_field_name:
+            field = self.env['ir.model.fields'].search([
+                ('model', '=', 'incoming.product.info'),
+                ('field_description', '=like', self.destination_field_name + '%')
+            ], limit=1)
+            if field:
+                self.destination_field = field.id
+                self.field_type = field.ttype
+            else:
+                self.destination_field = False
+                self.field_type = False
 
     def name_get(self):
         return [(record.id, record.destination_field_name or record.destination_field.field_description) for record in self]
 
-    def action_reset_field_name(self):
-        for record in self:
-            if record.destination_field:
-                record.destination_field_name = record.destination_field.with_context(lang='en_US').field_description.split(' (')[0]
-
     @api.model
     def get_available_fields(self):
-        return self.env['import.format.config'].get_incoming_product_info_fields()
+        fields_data = self.env['import.format.config'].get_incoming_product_info_fields()
+        return [(field, data['string']) for field, data in fields_data.items()]

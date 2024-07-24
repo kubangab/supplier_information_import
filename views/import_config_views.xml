@@ -21,11 +21,11 @@
                             <field name="column_mapping">
                                 <tree editable="bottom">
                                     <field name="source_column"/>
-                                    <field name="destination_field" widget="selection"/>
-                                    <field name="destination_field_name"/>
-                                    <field name="field_type"/>
+                                    <field name="destination_field_name" widget="selection_create"
+                                           options="{'create_edit': True}"/>
                                     <field name="is_required"/>
-                                    <button name="action_reset_field_name" string="Reset Name" type="object" icon="fa-refresh"/>
+                                    <field name="destination_field" invisible="1"/>
+                                    <field name="field_type" invisible="1"/>
                                 </tree>
                             </field>
                         </page>
@@ -47,6 +47,7 @@
         </field>
     </record>
 
+    <!-- Action för att visa Import Format Configurations -->
     <record id="action_import_format_config" model="ir.actions.act_window">
         <field name="name">Import Format Configurations</field>
         <field name="res_model">import.format.config</field>
