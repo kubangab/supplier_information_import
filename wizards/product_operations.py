@@ -103,7 +103,6 @@ class ImportProductInfo(models.TransientModel):
                 IncomingProductInfo.create(values)
 
         self.env.cr.commit()
-            self.env.cr.commit()
         
 class ReceiveProducts(models.TransientModel):
     _name = 'receive.products.wizard'
