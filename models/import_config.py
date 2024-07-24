@@ -14,7 +14,7 @@ class ImportFormatConfig(models.Model):
         ('excel', 'Excel')
     ], string='File Type', required=True)
     column_mapping = fields.One2many('import.column.mapping', 'config_id', string='Column Mappings')
-    supplier_id = fields.Many2one('res.partner', string='Supplier', domain=[('supplier_rank', '>', 0)])
+    supplier_id = fields.Many2one('res.partner', string='Supplier', domain=[('supplier_rank', '>', 0)], required=True)
     sample_file = fields.Binary(string='Sample File')
     sample_file_name = fields.Char(string='Sample File Name')
 
