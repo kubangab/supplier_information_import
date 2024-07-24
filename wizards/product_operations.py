@@ -59,7 +59,7 @@ class ImportProductInfo(models.TransientModel):
                 source_value = row.get(mapping.source_column)
                 if mapping.destination_field:
                     if mapping.is_required and not source_value:
-                        missing_required_fields.append(mapping.custom_label or mapping.destination_field.field_description)
+                    missing_required_fields.append(mapping.custom_label or mapping.destination_field.field_description)
                     if source_value:
                         values[mapping.destination_field.name] = source_value
 
@@ -103,7 +103,8 @@ class ImportProductInfo(models.TransientModel):
                 IncomingProductInfo.create(values)
 
         self.env.cr.commit()
-
+            self.env.cr.commit()
+        
 class ReceiveProducts(models.TransientModel):
     _name = 'receive.products.wizard'
     _description = 'Receive Products Wizard'
