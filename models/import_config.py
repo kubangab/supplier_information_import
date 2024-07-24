@@ -19,4 +19,5 @@ class ImportColumnMapping(models.Model):
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
-                                        domain=[('model', '=', 'incoming.product.info')], required=True)
+                                        domain=[('model', '=', 'incoming.product.info')], required=True,
+                                        ondelete='cascade')
