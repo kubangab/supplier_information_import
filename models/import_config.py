@@ -20,7 +20,7 @@ class ImportFormatConfig(models.Model):
 
     @api.model
     def get_incoming_product_info_fields(self):
-        return self.env['incoming.product.info'].fields_get().keys()
+        return self.env['incoming.product.info'].fields_get()
 
     def action_load_sample_file(self):
         self.ensure_one()
@@ -110,6 +110,11 @@ class ImportColumnMapping(models.Model):
                                         domain=[('model', '=', 'incoming.product.info')])
     destination_field_name = fields.Char(string='Destination Field', translate=True)
     is_required = fields.Boolean(string='Required', default=False)
+    field_type = fields.Selection(selection='_get_field_types', string='Field Type')
+
+    @api.model
+    def _get_field_types(self):
+        return self.env['ir.model.fields']._fields['ttype'].selection
 
     @api.model
     def create(self, vals):
@@ -127,13 +132,12 @@ class ImportColumnMapping(models.Model):
             field = self.env['ir.model.fields'].browse(vals['destination_field'])
             english_name = field.with_context(lang='en_US').field_description.split(' (')[0]
             
-            # Set the English name
-            if 'destination_field_name' not in vals or not vals['destination_field_name']:
+            if not vals.get('destination_field_name'):
                 vals['destination_field_name'] = english_name
             
-            # Set translations for other languages
+            vals['field_type'] = field.ttype
+            
             if self.env.context.get('install_mode'):
-                # Only set translations during installation to avoid overwriting user changes
                 translations = self.env['ir.translation']
                 for lang in self.env['res.lang'].search([('code', '!=', 'en_US')]):
                     translations |= translations.new({
@@ -151,8 +155,18 @@ class ImportColumnMapping(models.Model):
     def _onchange_destination_field(self):
         if self.destination_field:
             self.destination_field_name = self.destination_field.with_context(lang='en_US').field_description.split(' (')[0]
+            self.field_type = self.destination_field.ttype
         if self.destination_field.name in ['sn', 'model_no']:
             self.is_required = True
 
     def name_get(self):
         return [(record.id, record.destination_field_name or record.destination_field.field_description) for record in self]
+
+    def action_reset_field_name(self):
+        for record in self:
+            if record.destination_field:
+                record.destination_field_name = record.destination_field.with_context(lang='en_US').field_description.split(' (')[0]
+
+    @api.model
+    def get_available_fields(self):
+        return self.env['import.format.config'].get_incoming_product_info_fields()
