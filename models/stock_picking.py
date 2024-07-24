@@ -96,8 +96,8 @@ class StockPicking(models.Model):
 
             row_data = {
                 'SKU': product.default_code or '',
-                'Product': product.name,
-                'Quantity': move_line.qty_done,
+                'Product': product.name or '',
+                'Quantity': move_line.qty_done or 0,
                 'Serial Number': move_line.lot_id.name if move_line.lot_id else '',
             }
 
@@ -106,7 +106,7 @@ class StockPicking(models.Model):
                     value = getattr(incoming_info, field.lower(), False)
                     if value:
                         headers_needed[field] = True
-                        row_data[field] = value
+                        row_data[field] = str(value) if value else ''
 
             data.append(row_data)
 
@@ -120,7 +120,10 @@ class StockPicking(models.Model):
         # Write data
         for row, row_data in enumerate(data, start=1):
             for col, header in enumerate(headers):
-                worksheet.write(row, col, row_data.get(header, ''))
+                value = row_data.get(header, '')
+                if isinstance(value, models.Model):
+                    value = value.name if hasattr(value, 'name') else str(value)
+                worksheet.write(row, col, value)
 
         workbook.close()
         return output.getvalue()
