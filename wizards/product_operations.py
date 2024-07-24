@@ -23,26 +23,29 @@ class ImportProductInfo(models.TransientModel):
         file_content = base64.b64decode(self.file)
         
         if config.file_type == 'csv':
-            self.process_csv(file_content, config)
+            rows = self.process_csv(file_content)
         elif config.file_type == 'excel':
-            self.process_excel(file_content, config)
+            rows = self.process_excel(file_content)
         else:
             raise exceptions.UserError('Unsupported file format.')
 
+        self.process_rows(rows, config)
+
         return {'type': 'ir.actions.act_window_close'}
 
-    def process_csv(self, file_content, config):
+    def process_csv(self, file_content):
         csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
-        reader = csv.DictReader(csv_data, delimiter=',')
-        self.process_rows(reader, config)
+        reader = csv.DictReader(csv_data)
+        return list(reader)
 
-    def process_excel(self, file_content, config):
+    def process_excel(self, file_content):
         workbook = xlrd.open_workbook(file_contents=file_content)
         sheet = workbook.sheet_by_index(0)
-        header = [sheet.cell_value(0, col) for col in range(sheet.ncols)]
-        rows = [dict(zip(header, [sheet.cell_value(row, col) for col in range(sheet.ncols)]))
-                for row in range(1, sheet.nrows)]
-        self.process_rows(rows, config)
+        headers = [sheet.cell_value(0, col) for col in range(sheet.ncols)]
+        return [
+            dict(zip(headers, [sheet.cell_value(row, col) for col in range(sheet.ncols)]))
+            for row in range(1, sheet.nrows)
+        ]
 
     def process_rows(self, rows, config):
         IncomingProductInfo = self.env['incoming.product.info']
@@ -52,11 +55,24 @@ class ImportProductInfo(models.TransientModel):
             values = {}
             for mapping in config.column_mapping:
                 source_value = row.get(mapping.source_column)
-                if source_value:
+                if source_value and mapping.destination_field:
                     values[mapping.destination_field.name] = source_value
 
+            # Check for required fields
+            if 'supplier_product_code' not in values:
+                # Try to find a mapping for 'supplier_product_code'
+                supplier_product_code_mapping = config.column_mapping.filtered(lambda m: m.destination_field.name == 'supplier_product_code')
+                if supplier_product_code_mapping:
+                    values['supplier_product_code'] = row.get(supplier_product_code_mapping.source_column)
+
+            if 'sn' not in values:
+                # Try to find a mapping for 'sn' (Serial Number)
+                sn_mapping = config.column_mapping.filtered(lambda m: m.destination_field.name == 'sn')
+                if sn_mapping:
+                    values['sn'] = row.get(sn_mapping.source_column)
+
             if 'supplier_product_code' not in values or 'sn' not in values:
-                raise exceptions.UserError('Missing required fields: Supplier Product Code or Serial Number')
+                raise exceptions.UserError(f'Missing required fields: Supplier Product Code or Serial Number for row: {row}')
 
             existing_info = IncomingProductInfo.search([
                 ('supplier_id', '=', config.supplier_id.id),

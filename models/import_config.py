@@ -69,13 +69,35 @@ class ImportFormatConfig(models.Model):
 
     def _find_matching_field(self, column):
         fields = self.get_incoming_product_info_fields()
-        # Simple matching logic - can be improved
+        column_lower = column.lower().replace(' ', '_')
+        
+        # Direkt matchning
+        if column_lower in fields:
+            return self.env['ir.model.fields'].search([
+                ('model', '=', 'incoming.product.info'),
+                ('name', '=', column_lower)
+            ], limit=1)
+        
+        # Fuzzy matchning
         for field in fields:
-            if column.lower().replace(' ', '_') == field.lower():
+            if column_lower in field or field in column_lower:
                 return self.env['ir.model.fields'].search([
                     ('model', '=', 'incoming.product.info'),
                     ('name', '=', field)
                 ], limit=1)
+        
+        # Speciella fall
+        if 'product' in column_lower and 'code' in column_lower:
+            return self.env['ir.model.fields'].search([
+                ('model', '=', 'incoming.product.info'),
+                ('name', '=', 'supplier_product_code')
+            ], limit=1)
+        if 'serial' in column_lower or 'sn' in column_lower:
+            return self.env['ir.model.fields'].search([
+                ('model', '=', 'incoming.product.info'),
+                ('name', '=', 'sn')
+            ], limit=1)
+        
         return False
 
 class ImportColumnMapping(models.Model):
