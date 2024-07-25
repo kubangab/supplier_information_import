@@ -121,7 +121,8 @@ class ImportColumnMapping(models.Model):
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
                                         domain=[('model', '=', 'incoming.product.info')], 
-                                        required=True)
+                                        required=True,
+                                        ondelete='set null')  # Changed from 'restrict' to 'set null'
     custom_label = fields.Char(string='Custom Label', translate=True)
     is_required = fields.Boolean(string='Required')
 
