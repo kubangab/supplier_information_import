@@ -70,28 +70,28 @@ class ImportFormatConfig(models.Model):
                 ColumnMapping.create({
                     'config_id': self.id,
                     'source_column': column,
-                    'destination_field_name': matching_field[0] if matching_field else False,
-                    'custom_label': matching_field[1] if matching_field else column,
+                    'destination_field_name': matching_field if matching_field else 'custom',
+                    'custom_label': column if not matching_field else '',
                 })
 
     def _find_matching_field(self, column):
-        fields = dict(self.get_incoming_product_info_fields())
+        fields = dict(self.env['import.column.mapping']._get_destination_field_selection())
         column_lower = column.lower().replace(' ', '_')
         
         # Direct matching
         if column_lower in fields:
-            return column_lower, fields[column_lower]
+            return column_lower
         
         # Fuzzy matching
-        for field, description in fields.items():
+        for field in fields:
             if column_lower in field or field in column_lower:
-                return field, description
+                return field
         
         # Special cases
         if 'product' in column_lower and 'code' in column_lower:
-            return 'supplier_product_code', fields.get('supplier_product_code', 'Supplier Product Code')
+            return 'supplier_product_code'
         if 'serial' in column_lower or 'sn' in column_lower:
-            return 'sn', fields.get('sn', 'Serial Number')
+            return 'sn'
         
         return False
     
@@ -114,18 +114,21 @@ class ImportColumnMapping(models.Model):
 
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
     source_column = fields.Char(string='Source Column Name', required=True)
-    destination_field_name = fields.Char(string='Destination Field Name', required=True)
+    destination_field_name = fields.Selection(
+        selection='_get_destination_field_selection',
+        string='Destination Field Name',
+        required=True
+    )
     custom_label = fields.Char(string='Custom Label', translate=True)
     is_required = fields.Boolean(string='Required')
+
+    @api.model
+    def _get_destination_field_selection(self):
+        fields = self.env['incoming.product.info'].fields_get()
+        return [(name, field['string']) for name, field in fields.items()]
 
     @api.onchange('destination_field_name')
     def _onchange_destination_field_name(self):
         if self.destination_field_name:
-            field = self.env['ir.model.fields'].search([
-                ('model', '=', 'incoming.product.info'),
-                ('name', '=', self.destination_field_name)
-            ], limit=1)
-            if field:
-                self.custom_label = field.field_description
-            else:
-                self.custom_label = self.destination_field_name.replace('_', ' ').title()
+            fields = dict(self._get_destination_field_selection())
+            self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)

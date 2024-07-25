@@ -23,6 +23,4 @@ This module allows importing product information from various suppliers and mana
     'installable': True,
     'application': False,
     'auto_install': False,
-    'post_init_hook': 'post_init_hook',
-    'uninstall_hook': 'uninstall_hook',
 }
