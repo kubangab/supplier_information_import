@@ -14,7 +14,7 @@
     <menuitem id="menu_import_product_info"
               name="Import Product Info"
               parent="menu_product_info_import"
-              action="product_information_import.action_import_product_info"
+              action="supplier_information_import.action_import_product_info"
               sequence="20"/>
 
     <menuitem id="menu_import_format_config" 

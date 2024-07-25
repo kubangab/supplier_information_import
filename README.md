@@ -1,7 +1,7 @@
 # Supplier Information Import
 
 ## Overview
-The Product Information Import module for Odoo enhances the management of product information, particularly for IoT devices and network equipment. It streamlines the process of importing product details from suppliers, managing this information within Odoo, and facilitating the transfer of relevant data to customers.
+The Supplier Information Import module for Odoo enhances the management of product information, particularly for IoT devices and network equipment. It streamlines the process of importing product details from suppliers, managing this information within Odoo, and facilitating the transfer of relevant data to customers.
 
 ## Features
 
