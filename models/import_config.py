@@ -53,6 +53,12 @@ class ImportFormatConfig(models.Model):
         sheet = workbook.sheet_by_index(0)
         return [sheet.cell_value(0, col) for col in range(sheet.ncols)]
 
+    @api.constrains('column_mapping')
+    def _check_column_mapping(self):
+        for record in self:
+            if any(not mapping.destination_field for mapping in record.column_mapping):
+                raise ValidationError(_("All column mappings must have a destination field."))
+
     def _create_column_mappings(self, columns):
         ColumnMapping = self.env['import.column.mapping']
         existing_mappings = {m.source_column: m for m in self.column_mapping}
@@ -121,8 +127,7 @@ class ImportColumnMapping(models.Model):
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
                                         domain=[('model', '=', 'incoming.product.info')], 
-                                        required=True,
-                                        ondelete='set null')  # Changed from 'restrict' to 'set null'
+                                        ondelete='restrict')  # Changed back to 'restrict'
     custom_label = fields.Char(string='Custom Label', translate=True)
     is_required = fields.Boolean(string='Required')
 
