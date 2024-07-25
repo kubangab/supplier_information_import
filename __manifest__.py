@@ -12,9 +12,9 @@ This module allows importing product information from various suppliers and mana
     'license': 'LGPL-3',
     'data': [
         'security/ir.model.access.csv',
-        'views/menu_views.xml',
         'data/email_templates.xml',
         'views/incoming_product_info_views.xml',
+        'views/menu_views.xml',
         'views/import_config_views.xml',
         'views/product_views.xml',
         'views/stock_picking_views.xml',
