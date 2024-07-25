@@ -122,7 +122,7 @@ class StockPicking(models.Model):
             'res_id': self.id,
         })
 
-        template = self.env.ref('supplier_information_import.email_template_product_info')
+        template = self.env.ref('email_template_product_info')
         template.send_mail(
             self.id,
             force_send=True,
