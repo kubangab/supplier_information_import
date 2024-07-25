@@ -18,7 +18,7 @@
                             <field name="column_mapping">
                                 <tree editable="bottom">
                                     <field name="source_column"/>
-                                    <field name="destination_field" widget="many2one_createable"/>
+                                    <field name="destination_field_name"/>
                                     <field name="custom_label"/>
                                     <field name="is_required"/>
                                 </tree>

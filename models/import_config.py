@@ -20,7 +20,8 @@ class ImportFormatConfig(models.Model):
 
     @api.model
     def get_incoming_product_info_fields(self):
-        return self.env['incoming.product.info'].fields_get()
+        return [(field, self.env['incoming.product.info']._fields[field].string) 
+                for field in self.env['incoming.product.info']._fields]
     
     def action_load_sample_file(self):
         self.ensure_one()
@@ -65,44 +66,32 @@ class ImportFormatConfig(models.Model):
         
         for column in columns:
             if column not in existing_mappings:
-                # Try to find a matching field
                 matching_field = self._find_matching_field(column)
                 ColumnMapping.create({
                     'config_id': self.id,
                     'source_column': column,
-                    'destination_field': matching_field.id if matching_field else False,
+                    'destination_field_name': matching_field[0] if matching_field else False,
+                    'custom_label': matching_field[1] if matching_field else column,
                 })
 
     def _find_matching_field(self, column):
-        fields = self.get_incoming_product_info_fields()
+        fields = dict(self.get_incoming_product_info_fields())
         column_lower = column.lower().replace(' ', '_')
         
-        # Direkt matchning
+        # Direct matching
         if column_lower in fields:
-            return self.env['ir.model.fields'].search([
-                ('model', '=', 'incoming.product.info'),
-                ('name', '=', column_lower)
-            ], limit=1)
+            return column_lower, fields[column_lower]
         
-        # Fuzzy matchning
-        for field in fields:
+        # Fuzzy matching
+        for field, description in fields.items():
             if column_lower in field or field in column_lower:
-                return self.env['ir.model.fields'].search([
-                    ('model', '=', 'incoming.product.info'),
-                    ('name', '=', field)
-                ], limit=1)
+                return field, description
         
-        # Speciella fall
+        # Special cases
         if 'product' in column_lower and 'code' in column_lower:
-            return self.env['ir.model.fields'].search([
-                ('model', '=', 'incoming.product.info'),
-                ('name', '=', 'supplier_product_code')
-            ], limit=1)
+            return 'supplier_product_code', fields.get('supplier_product_code', 'Supplier Product Code')
         if 'serial' in column_lower or 'sn' in column_lower:
-            return self.env['ir.model.fields'].search([
-                ('model', '=', 'incoming.product.info'),
-                ('name', '=', 'sn')
-            ], limit=1)
+            return 'sn', fields.get('sn', 'Serial Number')
         
         return False
     
@@ -125,13 +114,18 @@ class ImportColumnMapping(models.Model):
 
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
     source_column = fields.Char(string='Source Column Name', required=True)
-    destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
-                                        domain=[('model', '=', 'incoming.product.info')], 
-                                        ondelete='restrict')  # Changed back to 'restrict'
+    destination_field_name = fields.Char(string='Destination Field Name', required=True)
     custom_label = fields.Char(string='Custom Label', translate=True)
     is_required = fields.Boolean(string='Required')
 
-    @api.onchange('destination_field')
-    def _onchange_destination_field(self):
-        if self.destination_field:
-            self.custom_label = self.destination_field.field_description
+    @api.onchange('destination_field_name')
+    def _onchange_destination_field_name(self):
+        if self.destination_field_name:
+            field = self.env['ir.model.fields'].search([
+                ('model', '=', 'incoming.product.info'),
+                ('name', '=', self.destination_field_name)
+            ], limit=1)
+            if field:
+                self.custom_label = field.field_description
+            else:
+                self.custom_label = self.destination_field_name.replace('_', ' ').title()
