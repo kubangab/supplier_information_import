@@ -5,9 +5,6 @@
         <field name="model">import.format.config</field>
         <field name="arch" type="xml">
             <form>
-                <header>
-                    <button name="action_load_sample_file" string="Load Sample File" type="object" class="oe_highlight" attrs="{'invisible': [('sample_file', '=', False)]}"/>
-                </header>
                 <sheet>
                     <group>
                         <field name="name"/>
@@ -21,7 +18,8 @@
                             <field name="column_mapping">
                                 <tree editable="bottom">
                                     <field name="source_column"/>
-                                    <field name="destination_field"/>
+                                    <field name="destination_field" widget="many2one_createable"/>
+                                    <field name="custom_label"/>
                                     <field name="is_required"/>
                                 </tree>
                             </field>
@@ -44,10 +42,15 @@
         </field>
     </record>
 
-    <!-- Action för att visa Import Format Configurations -->
     <record id="action_import_format_config" model="ir.actions.act_window">
         <field name="name">Import Format Configurations</field>
         <field name="res_model">import.format.config</field>
         <field name="view_mode">tree,form</field>
     </record>
+
+    <menuitem id="menu_import_format_config" 
+              name="Import Configurations" 
+              parent="menu_product_info_import" 
+              action="action_import_format_config" 
+              sequence="30"/>
 </odoo>

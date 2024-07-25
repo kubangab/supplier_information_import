@@ -99,6 +99,19 @@ class ImportFormatConfig(models.Model):
             ], limit=1)
         
         return False
+    
+    @api.model
+    def create(self, vals):
+        record = super(ImportFormatConfig, self).create(vals)
+        if record.sample_file:
+            record.action_load_sample_file()
+        return record
+
+    def write(self, vals):
+        res = super(ImportFormatConfig, self).write(vals)
+        if 'sample_file' in vals:
+            self.action_load_sample_file()
+        return res
 
 class ImportColumnMapping(models.Model):
     _name = 'import.column.mapping'
@@ -107,10 +120,12 @@ class ImportColumnMapping(models.Model):
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field = fields.Many2one('ir.model.fields', string='Destination Field', 
-                                        domain=[('model', '=', 'incoming.product.info')])
-    is_required = fields.Boolean(string='Required', default=False)
+                                        domain=[('model', '=', 'incoming.product.info')], 
+                                        required=True)
+    custom_label = fields.Char(string='Custom Label', translate=True)
+    is_required = fields.Boolean(string='Required')
 
     @api.onchange('destination_field')
     def _onchange_destination_field(self):
-        if self.destination_field.name in ['sn', 'model_no']:
-            self.is_required = True
+        if self.destination_field:
+            self.custom_label = self.destination_field.field_description
