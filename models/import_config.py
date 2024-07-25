@@ -57,9 +57,12 @@ class ImportFormatConfig(models.Model):
     @api.constrains('column_mapping')
     def _check_column_mapping(self):
         for record in self:
-            if any(not mapping.destination_field for mapping in record.column_mapping):
-                raise ValidationError(_("All column mappings must have a destination field."))
-
+            for mapping in record.column_mapping:
+                if not mapping.destination_field_name:
+                    raise ValidationError(_("All column mappings must have a destination field."))
+                if mapping.destination_field_name == 'custom' and not mapping.custom_label:
+                    raise ValidationError(_("Custom fields must have a label."))
+                
     def _create_column_mappings(self, columns):
         ColumnMapping = self.env['import.column.mapping']
         existing_mappings = {m.source_column: m for m in self.column_mapping}
@@ -125,10 +128,21 @@ class ImportColumnMapping(models.Model):
     @api.model
     def _get_destination_field_selection(self):
         fields = self.env['incoming.product.info'].fields_get()
-        return [(name, field['string']) for name, field in fields.items()]
+        selection = [(name, field['string']) for name, field in fields.items()]
+        selection.append(('custom', 'Custom Field'))
+        return selection
 
     @api.onchange('destination_field_name')
     def _onchange_destination_field_name(self):
         if self.destination_field_name:
-            fields = dict(self._get_destination_field_selection())
-            self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
+            if self.destination_field_name == 'custom':
+                self.custom_label = self.source_column
+            else:
+                fields = dict(self._get_destination_field_selection())
+                self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
+
+    @api.constrains('destination_field_name', 'custom_label')
+    def _check_custom_field(self):
+        for record in self:
+            if record.destination_field_name == 'custom' and not record.custom_label:
+                raise ValidationError(_("Custom fields must have a label."))
