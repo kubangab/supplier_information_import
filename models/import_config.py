@@ -98,12 +98,13 @@ class ImportFormatConfig(models.Model):
         
         return False
     
-    @api.model
-    def create(self, vals):
-        record = super(ImportFormatConfig, self).create(vals)
-        if record.sample_file:
-            record.action_load_sample_file()
-        return record
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super(ImportFormatConfig, self).create(vals_list)
+        for record in records:
+            if record.sample_file:
+                record.action_load_sample_file()
+        return records
 
     def write(self, vals):
         res = super(ImportFormatConfig, self).write(vals)
