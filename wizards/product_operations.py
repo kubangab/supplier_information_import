@@ -1,9 +1,9 @@
-import logging
-from odoo import models, fields, api, exceptions, _
 import base64
 import csv
 import io
 import xlrd
+import logging
+from odoo import models, fields, api, exceptions, _
 
 _logger = logging.getLogger(__name__)
 
@@ -30,25 +30,42 @@ class ImportProductInfo(models.TransientModel):
         elif config.file_type == 'excel':
             rows = self.process_excel(file_content)
         else:
-            raise exceptions.UserError(_('Unsupported file format.'))
+            raise exceptions.UserError(_('Unsupported file format. Please use CSV or Excel files.'))
 
         self.process_rows(rows, config)
 
         return {'type': 'ir.actions.act_window_close'}
 
     def process_csv(self, file_content):
-        csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
-        reader = csv.DictReader(csv_data)
-        return list(reader)
+        try:
+            csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
+            reader = csv.DictReader(csv_data, delimiter=';')  # Using semicolon as delimiter
+            return [{k.strip(): v.strip() for k, v in row.items()} for row in reader]
+        except Exception as e:
+            _logger.error(f"Error processing CSV file: {str(e)}")
+            raise exceptions.UserError(_('Error processing CSV file: %s') % str(e))
 
     def process_excel(self, file_content):
-        workbook = xlrd.open_workbook(file_contents=file_content)
-        sheet = workbook.sheet_by_index(0)
-        headers = [sheet.cell_value(0, col) for col in range(sheet.ncols)]
-        return [
-            dict(zip(headers, [sheet.cell_value(row, col) for col in range(sheet.ncols)]))
-            for row in range(1, sheet.nrows)
-        ]
+        try:
+            workbook = xlrd.open_workbook(file_contents=file_content)
+            sheet = workbook.sheet_by_index(0)
+            
+            headers = [str(cell.value).strip() for cell in sheet.row(0)]
+            
+            data = []
+            for row in range(1, sheet.nrows):
+                row_data = {}
+                for col, header in enumerate(headers):
+                    cell_value = sheet.cell_value(row, col)
+                    if isinstance(cell_value, float) and cell_value.is_integer():
+                        cell_value = int(cell_value)
+                    row_data[header] = str(cell_value).strip()
+                data.append(row_data)
+            
+            return data
+        except Exception as e:
+            _logger.error(f"Error processing Excel file: {str(e)}")
+            raise exceptions.UserError(_('Error processing Excel file: %s') % str(e))
 
     def process_rows(self, rows, config):
         IncomingProductInfo = self.env['incoming.product.info']
@@ -71,11 +88,11 @@ class ImportProductInfo(models.TransientModel):
 
             for mapping in config.column_mapping:
                 source_value = row.get(mapping.source_column)
-                if mapping.destination_field:
+                if mapping.destination_field_name:
                     if mapping.is_required and not source_value:
-                        missing_required_fields.append(mapping.custom_label or mapping.destination_field.field_description)
+                        missing_required_fields.append(mapping.custom_label or mapping.destination_field_name)
                     if source_value:
-                        values[mapping.destination_field.name] = source_value
+                        values[mapping.destination_field_name] = source_value
 
             if missing_required_fields:
                 raise exceptions.UserError(_('Missing required fields: %s for row: %s') % (", ".join(missing_required_fields), row))
