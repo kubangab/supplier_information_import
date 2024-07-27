@@ -4,43 +4,26 @@
         <record id="email_template_product_info" model="mail.template">
             <field name="name">Product Info Excel Report</field>
             <field name="model_id" ref="stock.model_stock_picking"/>
-            <field name="subject">Product Information for Delivery <t t-out="object.name or ''"/></field>
-            <field name="email_from"><t t-out="object.company_id.email or ''"/></field>
-            <field name="email_to"><t t-out="object.partner_id.email or ''"/></field>
+            <field name="subject">Product Information for {{ object._name == 'sale.order' and 'Order' or 'Delivery' }} {{ object.name }}</field>
+            <field name="email_from">{{ object.company_id.email }}</field>
+            <field name="email_to">{{ object.partner_id.email }}</field>
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
                     <p style="margin: 0px; padding: 0px; font-size: 13px;">
                         Dear <t t-out="object.partner_id.name or ''"/>,
                         <br/><br/>
-                        Please find attached the product information for your delivery <span style="font-weight:bold;" t-out="object.name or ''"/>.
+                        Please find attached the product information for your 
+                        <t t-if="object._name == 'sale.order'">
+                            order <span style="font-weight:bold;"><t t-out="object.name or ''"/></span>.
+                        </t>
+                        <t t-else="">
+                            delivery <span style="font-weight:bold;"><t t-out="object.name or ''"/></span>.
+                        </t>
                         <br/><br/>
                         If you have any questions, please don't hesitate to contact us.
                         <br/><br/>
                         Best regards,<br/>
-                        <t t-out="object.company_id.name or ''"/>
-                    </p>
-                </div>
-            </field>
-            <field name="auto_delete" eval="True"/>
-        </record>
-
-        <record id="email_template_product_info_sale_order" model="mail.template">
-            <field name="name">Product Info Excel Report (Sale Order)</field>
-            <field name="model_id" ref="sale.model_sale_order"/>
-            <field name="subject">Product Information for Order <t t-out="object.name or ''"/></field>
-            <field name="email_from"><t t-out="object.company_id.email or ''"/></field>
-            <field name="email_to"><t t-out="object.partner_id.email or ''"/></field>
-            <field name="body_html" type="html">
-                <div style="margin: 0px; padding: 0px;">
-                    <p style="margin: 0px; padding: 0px; font-size: 13px;">
-                        Dear <t t-out="object.partner_id.name or ''"/>,
-                        <br/><br/>
-                        Please find attached the product information for your order <span style="font-weight:bold;" t-out="object.name or ''"/>.
-                        <br/><br/>
-                        If you have any questions, please don't hesitate to contact us.
-                        <br/><br/>
-                        Best regards,<br/>
-                        <t t-out="object.company_id.name or ''"/>
+                        <t t-out="object.user_id.signature or object.company_id.name or ''">--<br>Mitchell Admin</t>
                     </p>
                 </div>
             </field>

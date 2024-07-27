@@ -14,16 +14,11 @@ class SendProductInfoWizard(models.TransientModel):
         res = super(SendProductInfoWizard, self).default_get(fields)
         active_model = self._context.get('active_model')
         active_id = self._context.get('active_id')
-
+    
         if active_model and active_id:
             record = self.env[active_model].browse(active_id)
-            if active_model == 'sale.order':
-                template = self.env.ref('supplier_information_import.email_template_product_info_sale_order')
-            elif active_model == 'stock.picking':
-                template = self.env.ref('supplier_information_import.email_template_product_info')
-            else:
-                return res
-
+            template = self.env.ref('supplier_information_import.email_template_product_info')
+    
             # Generate Excel file
             excel_data = record.generate_excel_report()
             attachment = self.env['ir.attachment'].create({
@@ -32,10 +27,10 @@ class SendProductInfoWizard(models.TransientModel):
                 'res_model': active_model,
                 'res_id': active_id,
             })
-
+    
             res.update({
-                'subject': template.subject,
-                'body': template.body_html,
+                'subject': template._render_field('subject', [record.id])[record.id],
+                'body': template._render_field('body_html', [record.id])[record.id],
                 'attachment_id': attachment.id,
             })
         return res
