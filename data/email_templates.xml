@@ -14,16 +14,16 @@
                         <br/><br/>
                         Please find attached the product information for your 
                         <t t-if="object._name == 'sale.order'">
-                            order <span style="font-weight:bold;"><t t-out="object.name or ''">S00001</t>, <t t-out="object._name" or ''></t></span>.
+                            order <span style="font-weight:bold;"><t t-out="object.name or ''">S00001</t>, <t t-out="object._name">sale</t></span>.
                         </t>
-                        <t t-elif="">
+                        <t t-else="">
                             delivery <span style="font-weight:bold;"><t t-out="object.name or ''">WH/OUT/00005</t></span>.
                         </t>
                         <br/><br/>
                         If you have any questions, please don't hesitate to contact us.
                         <br/><br/>
                         Best regards,<br/>
-                        <t t-out="object.user_id.signature or object.company_id.name or ''">--<br/>Mitchell Admin></t>
+                        <t t-out="object.user_id.signature or object.company_id.name or ''">--<br/>Mitchell Admin</t>
                     </p>
                 </div>
             </field>
