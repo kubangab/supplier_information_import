@@ -12,8 +12,17 @@ class SaleOrder(models.Model):
         if self.state not in ['sale', 'done']:
             raise UserError(_("You can only generate the Excel file for confirmed sales orders."))
 
-        excel_data = self.generate_excel_report()
-        self.send_excel_report_email(excel_data)
+        return {
+            'name': _('Send Product Information'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'send.product.info.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_res_model': 'sale.order',
+                'default_res_id': self.id,
+            }
+        }
 
     def generate_excel_report(self):
         output = BytesIO()

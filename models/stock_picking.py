@@ -54,14 +54,23 @@ class StockPicking(models.Model):
 
         return True
     
-    def action_generate_and_send_excel(self):
+     def action_generate_and_send_excel(self):
         self.ensure_one()
         if self.state != 'done':
             raise UserError(_("You can only generate the Excel file for confirmed transfers."))
 
-        excel_data = self.generate_excel_report()
-        self.send_excel_report_email(excel_data)
-
+        return {
+            'name': _('Send Product Information'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'send.product.info.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_res_model': 'stock.picking',
+                'default_res_id': self.id,
+            }
+        }
+    
     def generate_excel_report(self):
         output = BytesIO()
         workbook = xlsxwriter.Workbook(output)
