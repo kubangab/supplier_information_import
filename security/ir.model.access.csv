@@ -4,4 +4,3 @@ access_import_product_info_user,import.product.info.user,model_import_product_in
 access_import_format_config_user,import.format.config.user,model_import_format_config,base.group_user,1,1,1,1
 access_import_column_mapping_user,import.column.mapping.user,model_import_column_mapping,base.group_user,1,1,1,1
 access_receive_products_wizard_user,receive.products.wizard.user,model_receive_products_wizard,base.group_user,1,1,1,1
-access_send_product_info_wizard,access_send_product_info_wizard,model_send_product_info_wizard,base.group_user,1,1,1,1
