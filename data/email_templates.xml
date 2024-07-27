@@ -10,13 +10,13 @@
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
                     <p style="margin: 0px; padding: 0px; font-size: 13px;">
-                        Dear <t t-out="object.partner_id.name or ''"/>,
+                        Dear <t t-out="object.partner_id.name or ''">Brandon Freeman</t> (<t t-out="object.partner_id.parent_id.name or ''">Azure Interior</t>),
                         <br/><br/>
                         Please find attached the product information for your 
                         <t t-if="object._name == 'sale.order'">
                             order <span style="font-weight:bold;"><t t-out="object.name or ''"/></span>.
                         </t>
-                        <t t-else="">
+                        <t t-elif="object._name =='stock.picking'">
                             delivery <span style="font-weight:bold;"><t t-out="object.name or ''"/></span>.
                         </t>
                         <br/><br/>
