@@ -14,10 +14,10 @@
                         <br/><br/>
                         Please find attached the product information for your 
                         <t t-if="object._name == 'sale.order'">
-                            order <span style="font-weight:bold;"><t t-out="object.name or ''"/></span>.
+                            order <span style="font-weight:bold;"><t t-out="object.name or ''">S00001</t></span>.
                         </t>
-                        <t t-elif="object._name =='stock.picking'">
-                            delivery <span style="font-weight:bold;"><t t-out="object.name or ''"/></span>.
+                        <t t-elif="">
+                            delivery <span style="font-weight:bold;"><t t-out="object.name or ''">WH/OUT/00005</t></span>.
                         </t>
                         <br/><br/>
                         If you have any questions, please don't hesitate to contact us.
