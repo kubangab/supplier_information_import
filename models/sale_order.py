@@ -1,4 +1,5 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 import base64
 from io import BytesIO
 import xlsxwriter
@@ -75,8 +76,9 @@ class SaleOrder(models.Model):
                         col += 1
                 else:
                     # If no incoming_info, write empty cells for additional fields
-                    worksheet.write_blank(row, col, None, None)
-                    col += len(additional_headers)
+                    for _ in additional_headers:
+                        worksheet.write_blank(row, col, None, None)
+                        col += 1
 
                 row += 1
 
@@ -91,7 +93,7 @@ class SaleOrder(models.Model):
             'res_id': self.id,
         })
 
-        template = self.env.ref('supplier_information_import.email_template_product_info')
+        template = self.env.ref('supplier_information_import.email_template_product_info_sale_order')
         template.send_mail(
             self.id,
             force_send=True,
