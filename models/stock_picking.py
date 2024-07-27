@@ -66,42 +66,42 @@ class StockPicking(models.Model):
         output = BytesIO()
         workbook = xlsxwriter.Workbook(output)
         worksheet = workbook.add_worksheet('Product Info')
-
+        
         # Get fields from incoming.product.info model
         IncomingProductInfo = self.env['incoming.product.info']
         info_fields = IncomingProductInfo._fields
-
+        
         # Define base headers and get additional headers from incoming.product.info
         base_headers = ['SKU', 'Product', 'Quantity', 'Serial Number']
         excluded_fields = ['id', 'create_uid', 'create_date', 'write_uid', 'write_date', 'display_name', 
-                           'supplier_id', 'product_id', 'stock_picking_id', 'state', 'sn', 'name', 
-                           'supplier_product_code', 'product_tmpl_id', '__last_update']
+            'supplier_id', 'product_id', 'stock_picking_id', 'state', 'sn', 'name', 
+            'supplier_product_code', 'product_tmpl_id', '__last_update']
         additional_headers = [
             field.capitalize() 
             for field in info_fields 
             if field not in excluded_fields and field not in [h.lower() for h in base_headers]
         ]
         all_headers = base_headers + additional_headers
-
+        
         # Write headers
         for col, header in enumerate(all_headers):
             worksheet.write(0, col, header)
-
-        # Collect and write data
+            
+            # Collect and write data
         for row, move_line in enumerate(self.move_line_ids, start=1):
             product = move_line.product_id
             incoming_info = IncomingProductInfo.search([
                 ('product_id', '=', product.id),
                 ('sn', '=', move_line.lot_id.name)
             ], limit=1)
-
+            
             col = 0
             # Write base data
             worksheet.write(row, col, product.default_code or ''); col += 1
             worksheet.write(row, col, product.name or ''); col += 1
             worksheet.write(row, col, move_line.qty_done or 0); col += 1
             worksheet.write(row, col, move_line.lot_id.name if move_line.lot_id else ''); col += 1
-
+            
             # Write additional data from incoming_info
             if incoming_info:
                 for field in additional_headers:
@@ -110,7 +110,11 @@ class StockPicking(models.Model):
                         value = value.name if hasattr(value, 'name') else str(value)
                     worksheet.write(row, col, str(value) if value else '')
                     col += 1
-
+            else:
+                # If no incoming_info, write empty cells for additional fields
+                worksheet.write_blank(row, col, None, None)
+                col += len(additional_headers)
+                
         workbook.close()
         return output.getvalue()
     

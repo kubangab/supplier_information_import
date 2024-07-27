@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_order_form_inherit" model="ir.ui.view">
+        <field name="name">sale.order.form.inherit</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <button name="action_quotation_send" position="after">
+                <button name="action_generate_and_send_excel" 
+                        string="Generate and Send Excel" 
+                        type="object"
+                        attrs="{'invisible': [('state', 'not in', ['sale', 'done'])]}"
+                        groups="stock.group_stock_user"/>
+            </button>
+        </field>
+    </record>
+</odoo>
