@@ -14,7 +14,7 @@
                         <br/><br/>
                         Please find attached the product information for your 
                         <t t-if="object._name == 'sale.order'">
-                            order <span style="font-weight:bold;"><t t-out="object.name or ''">S00001</t></span>.
+                            order <span style="font-weight:bold;"><t t-out="object.name or ''">S00001</t>, <t t-out="object._name" or ''></t></span>.
                         </t>
                         <t t-elif="">
                             delivery <span style="font-weight:bold;"><t t-out="object.name or ''">WH/OUT/00005</t></span>.
