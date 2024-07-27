@@ -28,7 +28,12 @@ class SendProductInfoWizard(models.TransientModel):
                     raise UserError(_("The record no longer exists. Please refresh your browser."))
     
                 _logger.info(f"Fetching email template")
-                template = self.env.ref('supplier_information_import.email_template_product_info')
+                if active_model == 'sale.order':
+                    template = self.env.ref('supplier_information_import.email_template_product_info_sale_order')
+                elif active_model == 'stock.picking':
+                    template = self.env.ref('supplier_information_import.email_template_product_info_delivery')
+                else:
+                    raise UserError(_("Unsupported model for product information email."))
     
                 _logger.info(f"Generating Excel report")
                 excel_data = record.generate_excel_report()
@@ -41,18 +46,8 @@ class SendProductInfoWizard(models.TransientModel):
                     'res_id': active_id,
                 })
     
-                _logger.info(f"Preparing context for template rendering")
-                is_sale_order = active_model == 'sale.order'
-                template_ctx = {
-                    'ctx': {
-                    'is_sale_order': is_sale_order,
-                    'sale_order_name': record.name if is_sale_order else record.sale_id.name if hasattr(record, 'sale_id') and record.sale_id else '',
-                    }
-                }
-    
                 _logger.info(f"Rendering email subject and body")
-
-                rendered_template = template.with_context(**template_ctx).generate_email(record.id, ['subject', 'body_html'])
+                rendered_template = template.generate_email(record.id, ['subject', 'body_html'])
                 subject = rendered_template['subject']
                 body = rendered_template['body_html']
                 
