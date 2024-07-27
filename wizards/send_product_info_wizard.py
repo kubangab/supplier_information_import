@@ -14,20 +14,20 @@ class SendProductInfoWizard(models.TransientModel):
     body = fields.Html('Body', required=True)
     attachment_id = fields.Many2one('ir.attachment', string='Attachment')
 
-    @api.model
+     @api.model
     def default_get(self, fields):
         res = super(SendProductInfoWizard, self).default_get(fields)
         active_model = self._context.get('active_model')
         active_id = self._context.get('active_id')
-
+    
         if active_model and active_id:
             try:
                 record = self.env[active_model].sudo().browse(active_id).exists()
                 if not record:
                     raise UserError(_("The record no longer exists. Please refresh your browser."))
-
+    
                 template = self.env.ref('supplier_information_import.email_template_product_info')
-
+    
                 # Generate Excel file
                 excel_data = record.generate_excel_report()
                 attachment = self.env['ir.attachment'].sudo().create({
@@ -36,16 +36,22 @@ class SendProductInfoWizard(models.TransientModel):
                     'res_model': active_model,
                     'res_id': active_id,
                 })
-
-                # Render e-mail template
+    
+                # Prepare context for template rendering
                 template_ctx = {
+                    'ctx': {
+                        'is_sale_order': active_model == 'sale.order',
+                        'sale_order_name': record.name if active_model == 'sale.order' else record.sale_id.name if record.sale_id else '',
+                    },
                     'object': record,
                 }
-                subject = self.env['mail.render.mixin'].with_context(**template_ctx)._render_template(
+    
+                # Render e-mail template
+                subject = template.with_context(**template_ctx).render_template(
                     template.subject, active_model, [active_id])[active_id]
-                body = self.env['mail.render.mixin'].with_context(**template_ctx)._render_template(
+                body = template.with_context(**template_ctx).render_template(
                     template.body_html, active_model, [active_id])[active_id]
-
+    
                 res.update({
                     'subject': subject,
                     'body': body,
@@ -56,7 +62,7 @@ class SendProductInfoWizard(models.TransientModel):
             except Exception as e:
                 _logger.error(f"Error in generating product info: {str(e)}")
                 raise UserError(_("An error occurred while preparing the email. Please try again or contact your administrator."))
-
+    
         return res
 
     def action_send_mail(self):
