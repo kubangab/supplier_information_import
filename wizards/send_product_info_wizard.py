@@ -19,17 +19,17 @@ class SendProductInfoWizard(models.TransientModel):
         res = super(SendProductInfoWizard, self).default_get(fields)
         active_model = self._context.get('active_model')
         active_id = self._context.get('active_id')
-
+    
         if active_model and active_id:
             try:
                 _logger.info(f"Preparing email for {active_model} with id {active_id}")
                 record = self.env[active_model].sudo().browse(active_id).exists()
                 if not record:
                     raise UserError(_("The record no longer exists. Please refresh your browser."))
-
+    
                 _logger.info(f"Fetching email template")
                 template = self.env.ref('supplier_information_import.email_template_product_info')
-
+    
                 _logger.info(f"Generating Excel report")
                 excel_data = record.generate_excel_report()
                 
@@ -40,27 +40,19 @@ class SendProductInfoWizard(models.TransientModel):
                     'res_model': active_model,
                     'res_id': active_id,
                 })
-
+    
                 _logger.info(f"Preparing context for template rendering")
                 template_ctx = {
-                    'ctx': {
-                        'is_sale_order': active_model == 'sale.order',
-                        'sale_order_name': record.name if active_model == 'sale.order' else record.sale_id.name if hasattr(record, 'sale_id') and record.sale_id else '',
-                    },
-                    'object': record,
+                    'is_sale_order': active_model == 'sale.order',
+                    'sale_order_name': record.name if active_model == 'sale.order' else record.sale_id.name if hasattr(record, 'sale_id') and record.sale_id else '',
                 }
-
-                _logger.info(f"Rendering email subject")
-                subject = template.with_context(**template_ctx).render_template(
-                    template.subject, active_model, [active_id])[active_id]
+    
+                _logger.info(f"Rendering email subject and body")
+                rendered_template = template.with_context(**template_ctx).generate_email(record.id, ['subject', 'body_html'])
                 
-                _logger.info(f"Rendering email body")
-                body = template.with_context(**template_ctx).render_template(
-                    template.body_html, active_model, [active_id])[active_id]
-
                 res.update({
-                    'subject': subject,
-                    'body': body,
+                    'subject': rendered_template['subject'],
+                    'body': rendered_template['body_html'],
                     'attachment_id': attachment.id,
                 })
                 _logger.info(f"Email preparation completed successfully")
@@ -70,7 +62,7 @@ class SendProductInfoWizard(models.TransientModel):
             except Exception as e:
                 _logger.error(f"Error in generating product info: {str(e)}", exc_info=True)
                 raise UserError(_("An error occurred while preparing the email: %s. Please try again or contact your administrator.") % str(e))
-
+    
         return res
 
     def action_send_mail(self):
