@@ -5,24 +5,8 @@ from io import BytesIO
 import xlsxwriter
 
 class SaleOrder(models.Model):
-    _inherit = 'sale.order'
-
-    def action_generate_and_send_excel(self):
-        self.ensure_one()
-        if self.state not in ['sale', 'done']:
-            raise UserError(_("You can only generate the Excel file for confirmed sales orders."))
-
-        return {
-            'name': _('Send Product Information'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'send.product.info.wizard',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_res_model': 'sale.order',
-                'default_res_id': self.id,
-            }
-        }
+    _name = 'sale.order'
+    _inherit = ['sale.order', 'product.info.report.mixin']
 
     def generate_excel_report(self):
         output = BytesIO()

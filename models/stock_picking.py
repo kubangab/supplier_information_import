@@ -5,7 +5,8 @@ from io import BytesIO
 from odoo.exceptions import UserError
 
 class StockPicking(models.Model):
-    _inherit = 'stock.picking'
+    _name = 'stock.picking'
+    _inherit = ['stock.picking', 'product.info.report.mixin']
 
     def action_set_quantities_from_pending(self):
         IncomingProductInfo = self.env['incoming.product.info']
@@ -53,23 +54,6 @@ class StockPicking(models.Model):
             picking.action_assign()
 
         return True
-    
-    def action_generate_and_send_excel(self):
-        self.ensure_one()
-        if self.state != 'done':
-            raise UserError(_("You can only generate the Excel file for confirmed transfers."))
-
-        return {
-            'name': _('Send Product Information'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'send.product.info.wizard',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_res_model': 'stock.picking',
-                'default_res_id': self.id,
-            }
-        }
     
     def generate_excel_report(self):
         output = BytesIO()
