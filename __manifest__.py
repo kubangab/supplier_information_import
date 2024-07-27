@@ -20,7 +20,6 @@ This module allows importing product information from various suppliers and mana
         'views/sale_order_views.xml',
         'views/menu_views.xml',
         'wizards/product_operations_views.xml',
-        'wizards/send_product_info_wizard_views.xml',
     ],
     'installable': True,
     'application': False,
