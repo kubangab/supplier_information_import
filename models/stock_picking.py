@@ -54,7 +54,7 @@ class StockPicking(models.Model):
 
         return True
     
-     def action_generate_and_send_excel(self):
+    def action_generate_and_send_excel(self):
         self.ensure_one()
         if self.state != 'done':
             raise UserError(_("You can only generate the Excel file for confirmed transfers."))
