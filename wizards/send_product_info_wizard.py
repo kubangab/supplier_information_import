@@ -14,7 +14,7 @@ class SendProductInfoWizard(models.TransientModel):
     body = fields.Html('Body', required=True)
     attachment_id = fields.Many2one('ir.attachment', string='Attachment')
 
-     @api.model
+    @api.model
     def default_get(self, fields):
         res = super(SendProductInfoWizard, self).default_get(fields)
         active_model = self._context.get('active_model')
