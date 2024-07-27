@@ -1,4 +1,9 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
+import base64
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class SendProductInfoWizard(models.TransientModel):
     _name = 'send.product.info.wizard'
