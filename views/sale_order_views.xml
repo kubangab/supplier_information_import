@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <button name="action_quotation_send" position="after">
                 <button name="action_generate_and_send_excel" 
-                        string="Generate and Send Excel" 
+                        string="Send Product Info" 
                         type="object"
                         attrs="{'invisible': [('state', 'not in', ['sale', 'done'])]}"
                         groups="stock.group_stock_user"/>
