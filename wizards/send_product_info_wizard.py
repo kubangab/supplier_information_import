@@ -42,17 +42,23 @@ class SendProductInfoWizard(models.TransientModel):
                 })
     
                 _logger.info(f"Preparing context for template rendering")
+                is_sale_order = active_model == 'sale.order'
                 template_ctx = {
-                    'is_sale_order': active_model == 'sale.order',
-                    'sale_order_name': record.name if active_model == 'sale.order' else record.sale_id.name if hasattr(record, 'sale_id') and record.sale_id else '',
+                    'ctx': {
+                    'is_sale_order': is_sale_order,
+                    'sale_order_name': record.name if is_sale_order else record.sale_id.name if hasattr(record, 'sale_id') and record.sale_id else '',
+                    }
                 }
     
                 _logger.info(f"Rendering email subject and body")
+
                 rendered_template = template.with_context(**template_ctx).generate_email(record.id, ['subject', 'body_html'])
+                subject = rendered_template['subject']
+                body = rendered_template['body_html']
                 
                 res.update({
-                    'subject': rendered_template['subject'],
-                    'body': rendered_template['body_html'],
+                    'subject': subject,
+                    'body': body,
                     'attachment_id': attachment.id,
                 })
                 _logger.info(f"Email preparation completed successfully")
