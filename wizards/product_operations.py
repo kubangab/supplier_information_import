@@ -72,8 +72,10 @@ class ImportProductInfo(models.TransientModel):
         SupplierInfo = self.env['product.supplierinfo']
         Product = self.env['product.product']
         ProductTemplate = self.env['product.template']
-
+    
+        _logger.info(f"Starting to process {len(rows)} rows")
         _logger.info(f"Config supplier_id: {config.supplier_id.id}")
+        _logger.info(f"Column mapping: {[(m.source_column, m.destination_field_name) for m in config.column_mapping]}")
         
         supplier = self.env['res.partner'].browse(config.supplier_id.id)
         _logger.info(f"Supplier {supplier.name} (ID: {supplier.id}) has supplier_rank: {supplier.supplier_rank}")
@@ -81,41 +83,57 @@ class ImportProductInfo(models.TransientModel):
         if supplier.supplier_rank == 0:
             supplier.write({'supplier_rank': 1})
             _logger.info(f"Updated supplier_rank for {supplier.name} to 1")
-
-        for row in rows:
+    
+        for index, row in enumerate(rows, start=1):
+            _logger.info(f"Processing row {index}: {row}")
+            
+            # Skip empty rows
+            if all(value.strip() == '' for value in row.values()):
+                _logger.info(f"Skipping empty row {index}")
+                continue
+    
             values = {}
             missing_required_fields = []
-
+    
             for mapping in config.column_mapping:
-                source_value = row.get(mapping.source_column)
+                source_value = row.get(mapping.source_column, '').strip()
+                _logger.debug(f"Mapping {mapping.source_column} to {mapping.destination_field_name}: '{source_value}'")
                 if mapping.destination_field_name:
                     if mapping.is_required and not source_value:
                         missing_required_fields.append(mapping.custom_label or mapping.destination_field_name)
                     if source_value:
                         values[mapping.destination_field_name] = source_value
-
+    
             if missing_required_fields:
-                raise exceptions.UserError(_('Missing required fields: %s for row: %s') % (", ".join(missing_required_fields), row))
-
-            if 'sn' not in values or 'model_no' not in values:
-                raise exceptions.UserError(_('Missing required fields: Serial Number or Model No. for row: %s') % row)
-
+                _logger.warning(f"Row {index}: Missing required fields: {', '.join(missing_required_fields)}")
+                continue
+    
+            if 'model_no' not in values:
+                _logger.warning(f"Row {index}: Missing Model No.")
+                continue
+    
+            if 'sn' not in values:
+                _logger.warning(f"Row {index}: Missing Serial Number")
+                continue
+    
+            _logger.info(f"Row {index}: Processed values: {values}")
+    
             # First, search for existing supplier info
             supplier_info = SupplierInfo.search([
                 ('partner_id', '=', config.supplier_id.id),
                 ('product_code', '=', values['model_no'])
             ], limit=1)
-
+    
             if supplier_info:
-                _logger.info(f"Found existing SupplierInfo for product_code={values['model_no']}")
+                _logger.info(f"Row {index}: Found existing SupplierInfo for product_code={values['model_no']}")
                 product_tmpl = supplier_info.product_tmpl_id
                 product = Product.search([('product_tmpl_id', '=', product_tmpl.id)], limit=1)
             else:
-                _logger.info(f"Searching for Product with default_code={values['model_no']}")
+                _logger.info(f"Row {index}: Searching for Product with default_code={values['model_no']}")
                 product = Product.search([('default_code', '=', values['model_no'])], limit=1)
-
+    
             if not product:
-                _logger.info(f"Creating new product with default_code={values['model_no']}")
+                _logger.info(f"Row {index}: Creating new product with default_code={values['model_no']}")
                 product_tmpl = ProductTemplate.create({
                     'name': values.get('model_no', 'New Product'),
                     'default_code': values['model_no'],
@@ -124,33 +142,34 @@ class ImportProductInfo(models.TransientModel):
                 product = Product.create({
                     'product_tmpl_id': product_tmpl.id,
                 })
-
+    
             if not supplier_info:
-                _logger.info(f"Creating new SupplierInfo for product {product.id} and supplier {config.supplier_id.id}")
+                _logger.info(f"Row {index}: Creating new SupplierInfo for product {product.id} and supplier {config.supplier_id.id}")
                 supplier_info = SupplierInfo.create({
                     'partner_id': config.supplier_id.id,
                     'product_tmpl_id': product.product_tmpl_id.id,
                     'product_code': values['model_no'],
                 })
-
+    
             values['supplier_id'] = config.supplier_id.id
             values['product_id'] = product.id
             values['supplier_product_code'] = supplier_info.product_code
-
+    
             existing_info = IncomingProductInfo.search([
                 ('supplier_id', '=', config.supplier_id.id),
                 ('model_no', '=', values['model_no']),
                 ('sn', '=', values['sn'])
             ], limit=1)
-
+    
             if existing_info:
-                _logger.info(f"Updating existing IncomingProductInfo {existing_info.id}")
+                _logger.info(f"Row {index}: Updating existing IncomingProductInfo {existing_info.id}")
                 existing_info.write(values)
             else:
-                _logger.info(f"Creating new IncomingProductInfo")
+                _logger.info(f"Row {index}: Creating new IncomingProductInfo")
                 IncomingProductInfo.create(values)
-
+    
         self.env.cr.commit()
+        _logger.info("Finished processing all rows")
         
 class ReceiveProducts(models.TransientModel):
     _name = 'receive.products.wizard'
