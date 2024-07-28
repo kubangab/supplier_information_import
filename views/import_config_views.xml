@@ -25,11 +25,12 @@
                             </field>
                         </page>
                         <page string="Combination Rules">
-                            <field name="combination_rule_ids">
+                            <field name="combination_rule_ids" context="{'default_config_id': id}">
                                 <tree editable="bottom">
+                                    <field name="config_id" invisible="1"/>
                                     <field name="name"/>
-                                    <field name="field_1"/>
-                                    <field name="field_2"/>
+                                    <field name="field_1" domain="[('config_id', '=', parent.id)]"/>
+                                    <field name="field_2" domain="[('config_id', '=', parent.id)]"/>
                                     <field name="combination_pattern"/>
                                     <field name="regex_pattern"/>
                                 </tree>
@@ -40,7 +41,26 @@
             </form>
         </field>
     </record>
-    
+
+    <record id="view_import_combination_rule_form" model="ir.ui.view">
+        <field name="name">import.combination.rule.form</field>
+        <field name="model">import.combination.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="config_id"/>
+                        <field name="name"/>
+                        <field name="field_1" domain="[('config_id', '=', config_id)]"/>
+                        <field name="field_2" domain="[('config_id', '=', config_id)]"/>
+                        <field name="combination_pattern"/>
+                        <field name="regex_pattern"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <record id="view_import_format_config_tree" model="ir.ui.view">
         <field name="name">import.format.config.tree</field>
         <field name="model">import.format.config</field>
