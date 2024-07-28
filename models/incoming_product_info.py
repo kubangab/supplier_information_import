@@ -33,6 +33,34 @@ class IncomingProductInfo(models.Model):
         for record in self:
             record.name = f"{record.supplier_product_code or ''} - {record.sn or ''}"
 
+    @api.model
+    def _search_product(self, values, config):
+        combined_code = self._get_combined_code(values, config)
+        if combined_code:
+            supplier_info = self.env['product.supplierinfo'].search([
+                ('product_code', '=', combined_code),
+                ('name', '=', config.supplier_id.id)
+            ], limit=1)
+            if supplier_info:
+                return supplier_info.product_tmpl_id
+
+        return super()._search_product(values, config)
+
+    @api.model
+    def _get_combined_code(self, values, config):
+        for rule in config.combination_rule_ids:
+            field1_value = values.get(rule.field_1.source_column, '')
+            field2_value = values.get(rule.field_2.source_column, '')
+            combined = rule.combination_pattern.format(field1_value, field2_value)
+            
+            if rule.regex_pattern:
+                match = re.search(rule.regex_pattern, combined)
+                if match:
+                    return match.group(1)  # Assuming the first captured group is the desired code
+            else:
+                return combined
+        return None
+
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 

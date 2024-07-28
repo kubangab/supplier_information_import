@@ -9,6 +9,7 @@ class ImportFormatConfig(models.Model):
     _description = 'Import Format Configuration'
 
     name = fields.Char(string='Configuration Name', required=True)
+    combination_rule_ids = fields.One2many('import.combination.rule', 'config_id', string='Combination Rules')
     file_type = fields.Selection([
         ('csv', 'CSV'),
         ('excel', 'Excel')
@@ -111,6 +112,32 @@ class ImportFormatConfig(models.Model):
         if 'sample_file' in vals:
             self.action_load_sample_file()
         return res
+    
+class ImportCombinationRule(models.Model):
+    _name = 'import.combination.rule'
+    _description = 'Import Combination Rule'
+
+    config_id = fields.Many2one('import.format.config', string='Import Configuration')
+    name = fields.Char(string='Rule Name', required=True)
+    field_1 = fields.Many2one('import.column.mapping', string='Field 1', domain="[('config_id', '=', config_id)]")
+    field_2 = fields.Many2one('import.column.mapping', string='Field 2', domain="[('config_id', '=', config_id)]")
+    combination_pattern = fields.Char(string='Combination Pattern', required=True, 
+                                      help="Use {1} and {2} to represent fields. E.g., '{1}-{2}'")
+    regex_pattern = fields.Char(string='Regex Pattern', 
+                                help="Optional regex pattern to extract information from combined fields")
+
+    @api.constrains('field_1', 'field_2')
+    def _check_fields(self):
+        for rule in self:
+            if rule.field_1 == rule.field_2:
+                raise exceptions.ValidationError(_("Field 1 and Field 2 must be different"))
+
+    @api.constrains('combination_pattern')
+    def _check_combination_pattern(self):
+        for rule in self:
+            if '{1}' not in rule.combination_pattern or '{2}' not in rule.combination_pattern:
+                raise exceptions.ValidationError(_("Combination Pattern must contain both {1} and {2}"))
+
 
 class ImportColumnMapping(models.Model):
     _name = 'import.column.mapping'
@@ -125,6 +152,9 @@ class ImportColumnMapping(models.Model):
     )
     custom_label = fields.Char(string='Custom Label', translate=True)
     is_required = fields.Boolean(string='Required')
+
+    rule_field_1_ids = fields.One2many('import.combination.rule', 'field_1', string='Rules using as Field 1')
+    rule_field_2_ids = fields.One2many('import.combination.rule', 'field_2', string='Rules using as Field 2')
 
     @api.model
     def _get_destination_field_selection(self):

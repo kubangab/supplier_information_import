@@ -35,6 +35,7 @@ class ImportProductInfo(models.TransientModel):
         self.process_rows(rows, config)
 
         return {'type': 'ir.actions.act_window_close'}
+    
 
     def process_csv(self, file_content):
         try:
@@ -87,11 +88,6 @@ class ImportProductInfo(models.TransientModel):
         for index, row in enumerate(rows, start=1):
             _logger.info(f"Processing row {index}: {row}")
             
-            # Skip empty rows
-            if all(value.strip() == '' for value in row.values()):
-                _logger.info(f"Skipping empty row {index}")
-                continue
-    
             values = {}
             missing_required_fields = []
     
@@ -118,14 +114,20 @@ class ImportProductInfo(models.TransientModel):
     
             _logger.info(f"Row {index}: Processed values: {values}")
     
-            # First, search for existing supplier info
+            # Apply combination rules
+            combined_code = IncomingProductInfo._get_combined_code(values, config)
+            if combined_code:
+                values['supplier_product_code'] = combined_code
+                _logger.info(f"Row {index}: Applied combination rule. New supplier_product_code: {combined_code}")
+    
+            # Search for existing supplier info
             supplier_info = SupplierInfo.search([
-                ('partner_id', '=', config.supplier_id.id),
-                ('product_code', '=', values['model_no'])
+                ('name', '=', config.supplier_id.id),
+                ('product_code', '=', values['supplier_product_code'])
             ], limit=1)
     
             if supplier_info:
-                _logger.info(f"Row {index}: Found existing SupplierInfo for product_code={values['model_no']}")
+                _logger.info(f"Row {index}: Found existing SupplierInfo for product_code={values['supplier_product_code']}")
                 product_tmpl = supplier_info.product_tmpl_id
                 product = Product.search([('product_tmpl_id', '=', product_tmpl.id)], limit=1)
             else:
@@ -146,14 +148,13 @@ class ImportProductInfo(models.TransientModel):
             if not supplier_info:
                 _logger.info(f"Row {index}: Creating new SupplierInfo for product {product.id} and supplier {config.supplier_id.id}")
                 supplier_info = SupplierInfo.create({
-                    'partner_id': config.supplier_id.id,
+                    'name': config.supplier_id.id,
                     'product_tmpl_id': product.product_tmpl_id.id,
-                    'product_code': values['model_no'],
+                    'product_code': values['supplier_product_code'],
                 })
     
             values['supplier_id'] = config.supplier_id.id
             values['product_id'] = product.id
-            values['supplier_product_code'] = supplier_info.product_code
     
             existing_info = IncomingProductInfo.search([
                 ('supplier_id', '=', config.supplier_id.id),
