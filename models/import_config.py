@@ -165,7 +165,8 @@ class ImportColumnMapping(models.Model):
     display_destination_field_name = fields.Char(string='Display Destination Field', compute='_compute_display_destination_field_name')    
 
     _sql_constraints = [
-        ('unique_custom_label_per_config', 'unique(config_id, custom_label)', 
+        ('unique_custom_label_per_config', 
+         'UNIQUE(config_id, custom_label)', 
          'Custom label must be unique per configuration.')
     ]
 
@@ -194,13 +195,20 @@ class ImportColumnMapping(models.Model):
         selection.append(('custom', 'Custom Field'))
         return selection
 
+   @api.constrains('custom_label', 'destination_field_name')
+    def _check_custom_label(self):
+        for record in self:
+            if record.destination_field_name != 'custom' and record.custom_label:
+                raise ValidationError(_("Custom label should only be set for custom fields."))
+            if record.destination_field_name == 'custom' and not record.custom_label:
+                raise ValidationError(_("Custom fields must have a non-empty custom label."))
+
     @api.onchange('destination_field_name', 'source_column')
     def _onchange_destination_field_name(self):
         if self.destination_field_name == 'custom':
             self.custom_label = self.source_column
-        elif self.destination_field_name:
-            fields = dict(self._get_destination_field_selection())
-            self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
+        else:
+            self.custom_label = False
 
     @api.constrains('destination_field_name', 'custom_label')
     def _check_custom_field(self):
@@ -210,13 +218,11 @@ class ImportColumnMapping(models.Model):
             
     @api.model
     def create(self, vals):
-        if vals.get('destination_field_name') in ['sn', 'model_no']:
-            vals['is_required'] = True
+        if vals.get('destination_field_name') != 'custom':
+            vals['custom_label'] = False
         return super(ImportColumnMapping, self).create(vals)
 
     def write(self, vals):
-        res = super(ImportColumnMapping, self).write(vals)
-        for record in self:
-            if record.destination_field_name in ['sn', 'model_no']:
-                record.is_required = True
-        return res
+        if 'destination_field_name' in vals and vals['destination_field_name'] != 'custom':
+            vals['custom_label'] = False
+        return super(ImportColumnMapping, self).write(vals)
