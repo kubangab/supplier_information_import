@@ -187,7 +187,7 @@ class ImportColumnMapping(models.Model):
             if record.destination_field_name == 'custom' and not record.custom_label:
                 raise ValidationError(_("Custom fields must have a label."))
             
-   @api.model
+    @api.model
     def create(self, vals):
         if vals.get('destination_field_name') == 'custom' and not vals.get('custom_label'):
             vals['custom_label'] = vals.get('source_column')
