@@ -19,7 +19,11 @@
                 <footer>
                     <button name="action_analyze_file" string="Analyze" type="object" class="btn-primary"/>
                     <!-- New button for creating combination rules -->
-                    <button name="action_create_combination_rules" string="Create Combination Rules" type="object" class="btn-secondary" attrs="{'invisible': [('analysis_result', '=', False)]}"/>
+                    <button name="action_create_combination_rules" 
+                            string="Create Combination Rules" 
+                            type="object" 
+                            class="btn-secondary" 
+                            attrs="{'invisible': ['|', ('analysis_result', '=', False), ('filtered_combinations', '=', False)]}"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

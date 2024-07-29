@@ -48,7 +48,7 @@ class FileAnalysisWizard(models.TransientModel):
             return {'warning': {'title': "Error", 'message': "Please upload a file."}}
         if len(self.field_ids) != 2:
             return {'warning': {'title': "Error", 'message': "Please select exactly two fields for analysis."}}
-
+    
         file_content = base64.b64decode(self.file)
         
         if self.file_type == 'csv':
@@ -61,7 +61,7 @@ class FileAnalysisWizard(models.TransientModel):
         analysis_result, filtered_combinations = self._analyze_data(data)
         self.write({
             'analysis_result': analysis_result,
-            'filtered_combinations': repr(filtered_combinations)  # Store as string representation
+            'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False
         })
 
         return {
@@ -81,8 +81,19 @@ class FileAnalysisWizard(models.TransientModel):
     def _process_excel(self, file_content):
         book = xlrd.open_workbook(file_contents=file_content)
         sheet = book.sheet_by_index(0)
-        headers = [cell.value for cell in sheet.row(0)]
-        return [dict(zip(headers, [cell.value for cell in sheet.row(i)])) for i in range(1, sheet.nrows)]
+        headers = [str(cell.value) for cell in sheet.row(0)]
+        
+        data = []
+        for i in range(1, sheet.nrows):
+            row_data = {}
+            for col, header in enumerate(headers):
+                cell_value = sheet.cell_value(i, col)
+                if isinstance(cell_value, float) and cell_value.is_integer():
+                    cell_value = int(cell_value)
+                row_data[header] = str(cell_value)
+            data.append(row_data)
+        
+        return data
 
     def _analyze_data(self, data):
         field1, field2 = self.field_ids
@@ -107,7 +118,7 @@ class FileAnalysisWizard(models.TransientModel):
     
         # Filter out combinations where field1 has only one unique match in field2
         filtered_combinations = {k: v for k, v in combinations.items() 
-                                if len([c for c in combinations if c[0] == k[0]]) > 1}
+                                 if len([c for c in combinations if c[0] == k[0]]) > 1}
     
         # Sort the filtered combinations by the first field (Model No.)
         sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
@@ -116,6 +127,11 @@ class FileAnalysisWizard(models.TransientModel):
         for (val1, val2), count in sorted_combinations:
             result.append(f"{field1_name}: {val1}, {field2_name}: {val2} - Count: {count}")
     
+        if filtered_combinations:
+            self.filtered_combinations = repr(dict(sorted_combinations))
+        else:
+            self.filtered_combinations = False
+
         return "\n".join(result), dict(sorted_combinations)
 
     def action_create_combination_rules(self):

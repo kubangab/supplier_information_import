@@ -19,6 +19,7 @@ class ImportFormatConfig(models.Model):
     sample_file = fields.Binary(string='Sample File')
     sample_file_name = fields.Char(string='Sample File Name')
     product_code = fields.Char(string='Product Code')
+    previous_mappings = fields.Text(string='Previous Mappings')
 
     @api.model
     def get_incoming_product_info_fields(self):
@@ -39,13 +40,19 @@ class ImportFormatConfig(models.Model):
         else:
             raise exceptions.UserError(_('Unsupported file type.'))
 
-        self._create_column_mappings(columns)
-
         return {
-            'type': 'ir.actions.client',
-            'tag': 'reload',
+            'name': 'Analyze File',
+            'type': 'ir.actions.act_window',
+            'res_model': 'file.analysis.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_import_config_id': self.id,
+                'default_file': self.sample_file,
+                'default_file_name': self.sample_file_name,
+            }
         }
-
+    
     def _read_csv_columns(self, file_content):
         csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
         reader = csv.reader(csv_data)
