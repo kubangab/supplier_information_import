@@ -72,3 +72,11 @@ class FileAnalysisWizard(models.TransientModel):
             result.append("")
 
         return "\n".join(result)
+
+    @api.model
+    def default_get(self, fields):
+        res = super(FileAnalysisWizard, self).default_get(fields)
+        if 'import_config_id' in res:
+            config = self.env['import.format.config'].browse(res['import_config_id'])
+            res['field_ids'] = [(6, 0, config.column_mapping.ids)]
+        return res
