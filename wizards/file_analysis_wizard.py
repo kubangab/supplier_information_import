@@ -88,21 +88,31 @@ class FileAnalysisWizard(models.TransientModel):
         field1, field2 = self.field_ids
         field1_name = field1.custom_label or field1.source_column
         field2_name = field2.custom_label or field2.source_column
-
+    
         combinations = {}
         for row in data:
-            key = (row.get(field1.source_column, ''), row.get(field2.source_column, ''))
+            val1 = row.get(field1.source_column, '').strip()
+            val2 = row.get(field2.source_column, '').strip()
+            
+            # Skip rows where either field is empty
+            if not val1 or not val2:
+                continue
+            
+            key = (val1, val2)
             combinations[key] = combinations.get(key, 0) + 1
-
+    
         # Filter out combinations where field1 has only one unique match in field2
         filtered_combinations = {k: v for k, v in combinations.items() 
-                                 if len([c for c in combinations if c[0] == k[0]]) > 1}
-
+                                if len([c for c in combinations if c[0] == k[0]]) > 1}
+    
+        # Sort the filtered combinations by the first field (Model No.)
+        sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
+    
         result = [f"Analysis of {field1_name} and {field2_name}:"]
-        for (val1, val2), count in filtered_combinations.items():
+        for (val1, val2), count in sorted_combinations:
             result.append(f"{field1_name}: {val1}, {field2_name}: {val2} - Count: {count}")
-
-        return "\n".join(result), filtered_combinations
+    
+        return "\n".join(result), dict(sorted_combinations)
 
     def action_create_combination_rules(self):
         if not self.product_code:
