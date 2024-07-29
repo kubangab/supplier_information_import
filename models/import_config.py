@@ -160,6 +160,11 @@ class ImportColumnMapping(models.Model):
     rule_field_1_ids = fields.One2many('import.combination.rule', 'field_1', string='Rules using as Field 1')
     rule_field_2_ids = fields.One2many('import.combination.rule', 'field_2', string='Rules using as Field 2')
 
+    _sql_constraints = [
+        ('unique_custom_label_per_config', 'unique(config_id, custom_label)', 
+         'Custom label must be unique per configuration.')
+    ]
+
     @api.model
     def _get_destination_field_selection(self):
         fields = self.env['incoming.product.info'].fields_get()
@@ -171,7 +176,7 @@ class ImportColumnMapping(models.Model):
     def _onchange_destination_field_name(self):
         if self.destination_field_name:
             if self.destination_field_name == 'custom':
-                self.custom_label = self.source_column
+                self.custom_label = self.source_column  # Detta är den nya raden
             else:
                 fields = dict(self._get_destination_field_selection())
                 self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
