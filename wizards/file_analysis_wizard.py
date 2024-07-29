@@ -60,7 +60,7 @@ class FileAnalysisWizard(models.TransientModel):
         analysis = {}
         for field in self.field_ids:
             unique_values = set(row.get(field.source_column, '') for row in data)
-            analysis[field.source_column] = list(unique_values)
+            analysis[field.custom_label or field.source_column] = list(unique_values)
 
         result = []
         for field, values in analysis.items():
@@ -71,3 +71,10 @@ class FileAnalysisWizard(models.TransientModel):
             result.append("")
 
         return "\n".join(result)
+
+    @api.model
+    def _get_field_selection(self):
+        """Get selection for field_ids based on custom labels"""
+        if self.import_config_id:
+            return [(str(f.id), f.custom_label or f.source_column) for f in self.import_config_id.column_mapping]
+        return []
