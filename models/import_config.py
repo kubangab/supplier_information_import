@@ -207,15 +207,46 @@ class ImportColumnMapping(models.Model):
         if self.destination_field_name == 'custom':
             self.custom_label = self.source_column
         elif not self.custom_label:
-            self.custom_label = dict(self._fields['destination_field_name'].selection).get(self.destination_field_name)
+            selection = self._fields['destination_field_name'].selection
+            if callable(selection):
+                selection = selection(self)
+            selection_dict = dict(selection)
+            self.custom_label = selection_dict.get(self.destination_field_name, self.destination_field_name)
 
     @api.model
     def create(self, vals):
-        if vals.get('destination_field_name') != 'custom':
-            vals['custom_label'] = False
+        if not vals.get('custom_label'):
+            if vals.get('destination_field_name') == 'custom':
+                vals['custom_label'] = vals.get('source_column', '')
+            else:
+                selection = self._fields['destination_field_name'].selection
+                if callable(selection):
+                    selection = selection(self)
+                selection_dict = dict(selection)
+                vals['custom_label'] = selection_dict.get(vals.get('destination_field_name', ''), vals.get('destination_field_name', ''))
         return super(ImportColumnMapping, self).create(vals)
-
+    
     def write(self, vals):
-        if 'destination_field_name' in vals and vals['destination_field_name'] != 'custom':
-            vals['custom_label'] = False
+        if 'destination_field_name' in vals and 'custom_label' not in vals:
+            if vals['destination_field_name'] == 'custom':
+                vals['custom_label'] = self.source_column
+            else:
+                selection = self._fields['destination_field_name'].selection
+                if callable(selection):
+                    selection = selection(self)
+                selection_dict = dict(selection)
+                vals['custom_label'] = selection_dict.get(vals['destination_field_name'], vals['destination_field_name'])
         return super(ImportColumnMapping, self).write(vals)
+    
+    @api.model
+    def _fill_empty_custom_labels(self):
+        empty_labels = self.search([('custom_label', '=', False)])
+        for record in empty_labels:
+            if record.destination_field_name == 'custom':
+                record.custom_label = record.source_column
+            else:
+                selection = self._fields['destination_field_name'].selection
+                if callable(selection):
+                    selection = selection(self)
+            selection_dict = dict(selection)
+                record.custom_label = selection_dict.get(record.destination_field_name, record.destination_field_name)
