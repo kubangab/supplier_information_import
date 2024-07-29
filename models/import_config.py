@@ -31,7 +31,7 @@ class ImportFormatConfig(models.Model):
         self.ensure_one()
         if not self.sample_file:
             return {'warning': {'title': _('Error'), 'message': _('Please upload a sample file first.')}}
-
+    
         file_content = base64.b64decode(self.sample_file)
         
         if self.file_type == 'csv':
@@ -40,10 +40,20 @@ class ImportFormatConfig(models.Model):
             columns = self._read_excel_columns(file_content)
         else:
             return {'warning': {'title': _('Error'), 'message': _('Unsupported file type.')}}
-
-        # Lagra kolumnnamnen temporärt
+    
+        # Store column names temporarily
         self.temp_column_names = ','.join(columns)
-
+    
+        # Clear existing column mappings
+        self.column_mapping.unlink()
+    
+        # Create temporary column mappings without saving to database
+        self.column_mapping = [(0, 0, {
+            'source_column': column.strip(),
+            'destination_field_name': 'custom',
+            'custom_label': column.strip(),
+        }) for column in columns]
+    
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'import.format.config',
@@ -112,13 +122,12 @@ class ImportFormatConfig(models.Model):
                 ImportColumnMapping.create({
                     'config_id': self.id,
                     'source_column': column.strip(),
-                    'destination_field_name': 'custom',  # Default to 'custom', user can change this later
+                    'destination_field_name': 'custom',
                     'custom_label': column.strip(),
                 })
         
         # Clear temp_column_names after mappings have been created
         self.temp_column_names = False
-
     def _find_matching_field(self, column):
         fields = dict(self.env['import.column.mapping']._get_destination_field_selection())
         column_lower = column.lower().replace(' ', '_')
@@ -233,7 +242,7 @@ class ImportColumnMapping(models.Model):
     @api.constrains('custom_label')
     def _check_custom_label(self):
         for record in self:
-            if not record.custom_label:
+            if record.id and not record.custom_label:  # Only check if the record has been saved
                 raise exceptions.UserError(_("All fields must have a non-empty custom label."))
 
     @api.onchange('destination_field_name')

@@ -19,12 +19,10 @@
                     <notebook attrs="{'invisible': [('temp_column_names', '=', False)]}">
                         <page string="Column Mappings">
                             <field name="column_mapping">
-                                <tree editable="bottom">
+                                <tree editable="bottom" create="false" delete="false">
                                     <field name="source_column" readonly="1"/>
                                     <field name="destination_field_name" widget="selection"/>
-                                    <field name="custom_label" required="1"/>
-                                    <field name="is_required" attrs="{'readonly': [('is_readonly', '=', True)]}"/>
-                                    <field name="is_readonly" invisible="1"/>
+                                    <field name="custom_label"/>
                                 </tree>
                             </field>
                         </page>
