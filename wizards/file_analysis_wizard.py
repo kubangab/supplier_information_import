@@ -8,22 +8,17 @@ class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
     _description = 'File Analysis Wizard'
 
+    import_config_id = fields.Many2one('import.format.config', string='Import Configuration', required=True)
     file = fields.Binary(string='File', required=True)
     file_name = fields.Char(string='File Name')
-    file_type = fields.Selection([
-        ('csv', 'CSV'),
-        ('excel', 'Excel')
-    ], string='File Type', required=True)
-    field_ids = fields.Many2many('import.column.mapping', string='Fields to Analyze')
+    file_type = fields.Selection(related='import_config_id.file_type', readonly=True)
+    field_ids = fields.Many2many('import.column.mapping', string='Fields to Analyze', 
+                                 domain="[('config_id', '=', import_config_id)]")
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
 
-    @api.onchange('file', 'file_name')
-    def _onchange_file(self):
-        if self.file_name:
-            if self.file_name.endswith('.csv'):
-                self.file_type = 'csv'
-            elif self.file_name.endswith(('.xls', '.xlsx')):
-                self.file_type = 'excel'
+    @api.onchange('import_config_id')
+    def _onchange_import_config(self):
+        self.field_ids = self.import_config_id.column_mapping
 
     def action_analyze_file(self):
         if not self.file:

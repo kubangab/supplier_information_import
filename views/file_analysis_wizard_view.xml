@@ -6,9 +6,10 @@
         <field name="arch" type="xml">
             <form string="File Analysis">
                 <group>
+                    <field name="import_config_id"/>
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
-                    <field name="file_type"/>
+                    <field name="file_type" invisible="1"/>
                     <field name="field_ids" widget="many2many_tags"/>
                 </group>
                 <group>
