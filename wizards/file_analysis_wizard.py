@@ -26,7 +26,7 @@ class FileAnalysisWizard(models.TransientModel):
             self.field_ids = self.import_config_id.column_mapping
             _logger.info(f"Loaded {len(self.field_ids)} fields for config {self.import_config_id.name}")
             for field in self.field_ids:
-                _logger.info(f"Field: {field.custom_label or field.source_column}")
+                _logger.info(f"Field: {field.custom_label or field.source_column} (ID: {field.id})")
 
     def action_analyze_file(self):
         self.ensure_one()
@@ -83,12 +83,14 @@ class FileAnalysisWizard(models.TransientModel):
         return "\n".join(result)
 
     @api.model
-    def default_get(self, fields):
-        res = super(FileAnalysisWizard, self).default_get(fields)
-        if 'import_config_id' in res:
-            config = self.env['import.format.config'].browse(res['import_config_id'])
-            res['field_ids'] = [(6, 0, config.column_mapping.ids)]
-        return res
+    def create(self, vals):
+        record = super(FileAnalysisWizard, self).create(vals)
+        if record.import_config_id:
+            record.field_ids = record.import_config_id.column_mapping
+        return record
+
+class ImportColumnMapping(models.Model):
+    _inherit = 'import.column.mapping'
 
     def name_get(self):
         return [(record.id, record.custom_label or record.source_column) for record in self]
