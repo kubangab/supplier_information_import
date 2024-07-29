@@ -3,6 +3,9 @@ import base64
 import csv
 import io
 import xlrd
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
@@ -18,9 +21,15 @@ class FileAnalysisWizard(models.TransientModel):
 
     @api.onchange('import_config_id')
     def _onchange_import_config(self):
-        self.field_ids = self.import_config_id.column_mapping
+        self.ensure_one()
+        if self.import_config_id:
+            self.field_ids = self.import_config_id.column_mapping
+            _logger.info(f"Loaded {len(self.field_ids)} fields for config {self.import_config_id.name}")
+            for field in self.field_ids:
+                _logger.info(f"Field: {field.custom_label or field.source_column}")
 
     def action_analyze_file(self):
+        self.ensure_one()
         if not self.file:
             return {'warning': {'title': _("Error"), 'message': _("Please upload a file.")}}
 
@@ -80,3 +89,6 @@ class FileAnalysisWizard(models.TransientModel):
             config = self.env['import.format.config'].browse(res['import_config_id'])
             res['field_ids'] = [(6, 0, config.column_mapping.ids)]
         return res
+
+    def name_get(self):
+        return [(record.id, record.custom_label or record.source_column) for record in self]

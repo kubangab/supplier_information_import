@@ -10,12 +10,7 @@
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
                     <field name="file_type" invisible="1"/>
-                    <field name="field_ids" widget="many2many_tags" options="{'no_create': True}">
-                        <tree>
-                            <field name="custom_label"/>
-                            <field name="source_column"/>
-                        </tree>
-                    </field>
+                    <field name="field_ids" widget="many2many_tags" options="{'no_create': True}"/>
                 </group>
                 <group>
                     <field name="analysis_result" readonly="1" attrs="{'invisible': [('analysis_result', '=', False)]}"/>
