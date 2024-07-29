@@ -17,7 +17,23 @@ class FileAnalysisWizard(models.TransientModel):
     file_type = fields.Selection(related='import_config_id.file_type', readonly=True)
     field_ids = fields.Many2many('import.column.mapping', string='Fields to Analyze', 
                                  domain="[('config_id', '=', import_config_id)]")
+    field_names = fields.Char(compute='_compute_field_names', string='Field Names')
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
+
+    @api.onchange('import_config_id')
+    def _onchange_import_config(self):
+        self.ensure_one()
+        if self.import_config_id:
+            self.field_ids = self.import_config_id.column_mapping
+            _logger.info(f"Loaded {len(self.field_ids)} fields for config {self.import_config_id.name}")
+            for field in self.field_ids:
+                _logger.info(f"Field: {field.custom_label or field.source_column} (ID: {field.id})")
+
+    @api.depends('field_ids')
+    def _compute_field_names(self):
+        for record in self:
+            field_names = [field.custom_label or field.source_column for field in record.field_ids]
+            record.field_names = ', '.join(field_names)
 
     @api.onchange('import_config_id')
     def _onchange_import_config(self):
