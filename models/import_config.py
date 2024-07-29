@@ -234,7 +234,7 @@ class ImportColumnMapping(models.Model):
     def _check_custom_label(self):
         for record in self:
             if not record.custom_label:
-                raise ValidationError(_("All fields must have a non-empty custom label."))
+                raise exceptions.UserError(_("All fields must have a non-empty custom label."))
 
     @api.onchange('destination_field_name')
     def _onchange_destination_field_name(self):
