@@ -17,37 +17,30 @@ class FileAnalysisWizard(models.TransientModel):
     file_type = fields.Selection(related='import_config_id.file_type', readonly=True)
     field_ids = fields.Many2many('import.column.mapping', string='Fields to Analyze', 
                                  domain="[('config_id', '=', import_config_id)]")
-    field_names = fields.Char(compute='_compute_field_names', string='Field Names')
+    field_names = fields.Char(compute='_compute_field_names', string='Available Fields')
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
 
-    @api.onchange('import_config_id')
-    def _onchange_import_config(self):
-        self.ensure_one()
-        if self.import_config_id:
-            self.field_ids = self.import_config_id.column_mapping
-            _logger.info(f"Loaded {len(self.field_ids)} fields for config {self.import_config_id.name}")
-            for field in self.field_ids:
-                _logger.info(f"Field: {field.custom_label or field.source_column} (ID: {field.id})")
-
-    @api.depends('field_ids')
+    @api.depends('import_config_id.column_mapping')
     def _compute_field_names(self):
         for record in self:
-            field_names = [field.custom_label or field.source_column for field in record.field_ids]
+            field_names = [field.custom_label or field.source_column for field in record.import_config_id.column_mapping]
             record.field_names = ', '.join(field_names)
 
     @api.onchange('import_config_id')
     def _onchange_import_config(self):
         self.ensure_one()
         if self.import_config_id:
-            self.field_ids = self.import_config_id.column_mapping
-            _logger.info(f"Loaded {len(self.field_ids)} fields for config {self.import_config_id.name}")
-            for field in self.field_ids:
+            self.field_ids = False  # Clear previous selection
+            _logger.info(f"Loaded {len(self.import_config_id.column_mapping)} fields for config {self.import_config_id.name}")
+            for field in self.import_config_id.column_mapping:
                 _logger.info(f"Field: {field.custom_label or field.source_column} (ID: {field.id})")
 
     def action_analyze_file(self):
         self.ensure_one()
         if not self.file:
             return {'warning': {'title': _("Error"), 'message': _("Please upload a file.")}}
+        if len(self.field_ids) != 2:
+            return {'warning': {'title': _("Error"), 'message': _("Please select exactly two fields for analysis.")}}
 
         file_content = base64.b64decode(self.file)
         
@@ -82,28 +75,20 @@ class FileAnalysisWizard(models.TransientModel):
         return [dict(zip(headers, [cell.value for cell in sheet.row(i)])) for i in range(1, sheet.nrows)]
 
     def _analyze_data(self, data):
-        analysis = {}
-        for field in self.field_ids:
-            field_name = field.custom_label or field.source_column
-            unique_values = set(row.get(field.source_column, '') for row in data)
-            analysis[field_name] = list(unique_values)
+        field1, field2 = self.field_ids
+        field1_name = field1.custom_label or field1.source_column
+        field2_name = field2.custom_label or field2.source_column
 
-        result = []
-        for field, values in analysis.items():
-            result.append(f"Field: {field}")
-            result.append("Unique values:")
-            for value in values:
-                result.append(f"  - {value}")
-            result.append("")
+        combinations = {}
+        for row in data:
+            key = (row.get(field1.source_column, ''), row.get(field2.source_column, ''))
+            combinations[key] = combinations.get(key, 0) + 1
+
+        result = [f"Analysis of {field1_name} and {field2_name}:"]
+        for (val1, val2), count in combinations.items():
+            result.append(f"{field1_name}: {val1}, {field2_name}: {val2} - Count: {count}")
 
         return "\n".join(result)
-
-    @api.model
-    def create(self, vals):
-        record = super(FileAnalysisWizard, self).create(vals)
-        if record.import_config_id:
-            record.field_ids = record.import_config_id.column_mapping
-        return record
 
 class ImportColumnMapping(models.Model):
     _inherit = 'import.column.mapping'
