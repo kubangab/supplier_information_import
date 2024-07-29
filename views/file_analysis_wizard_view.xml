@@ -12,13 +12,13 @@
                     <field name="file_type" invisible="1"/>
                     <field name="field_names" readonly="1"/>
                     <field name="field_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                    <field name="filtered_combinations" invisible="1"/>
                 </group>
                 <group>
                     <field name="analysis_result" readonly="1" attrs="{'invisible': [('analysis_result', '=', False)]}"/>
                 </group>
                 <footer>
                     <button name="action_analyze_file" string="Analyze" type="object" class="btn-primary"/>
-                    <!-- New button for creating combination rules -->
                     <button name="action_create_combination_rules" 
                             string="Create Combination Rules" 
                             type="object" 
