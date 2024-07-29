@@ -5,6 +5,9 @@
         <field name="model">import.format.config</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_load_sample_columns" string="Load Sample Columns" type="object" class="oe_highlight" attrs="{'invisible': [('sample_file', '=', False)]}"/>
+                </header>
                 <sheet>
                     <group>
                         <field name="name"/>
@@ -13,7 +16,7 @@
                         <field name="sample_file" filename="sample_file_name"/>
                         <field name="sample_file_name" invisible="1"/>
                     </group>
-                    <notebook>
+                    <notebook attrs="{'invisible': [('temp_column_names', '=', False)]}">
                         <page string="Column Mappings">
                             <field name="column_mapping">
                                 <tree editable="bottom">
@@ -25,20 +28,8 @@
                                 </tree>
                             </field>
                         </page>
-                        <page string="Combination Rules">
-                            <field name="combination_rule_ids" context="{'default_config_id': id}">
-                                <tree editable="bottom">
-                                    <field name="config_id" invisible="1"/>
-                                    <field name="name"/>
-                                    <field name="field_1" domain="[('config_id', '=', parent.id)]"/>
-                                    <field name="value_1"/>
-                                    <field name="field_2" domain="[('config_id', '=', parent.id)]"/>
-                                    <field name="value_2"/>
-                                    <field name="product_id"/>
-                                </tree>
-                            </field>
-                        </page>
                     </notebook>
+                    <field name="temp_column_names" invisible="1"/>
                 </sheet>
             </form>
         </field>

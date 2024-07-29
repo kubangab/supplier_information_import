@@ -20,12 +20,39 @@ class ImportFormatConfig(models.Model):
     sample_file_name = fields.Char(string='Sample File Name')
     product_code = fields.Char(string='Product Code')
     previous_mappings = fields.Text(string='Previous Mappings')
+    temp_column_names = fields.Text(string='Temporary Column Names')
 
     @api.model
     def get_incoming_product_info_fields(self):
         return [(field, self.env['incoming.product.info']._fields[field].string) 
                 for field in self.env['incoming.product.info']._fields]
-    
+
+    def action_load_sample_columns(self):
+        self.ensure_one()
+        if not self.sample_file:
+            return {'warning': {'title': _('Error'), 'message': _('Please upload a sample file first.')}}
+
+        file_content = base64.b64decode(self.sample_file)
+        
+        if self.file_type == 'csv':
+            columns = self._read_csv_columns(file_content)
+        elif self.file_type == 'excel':
+            columns = self._read_excel_columns(file_content)
+        else:
+            return {'warning': {'title': _('Error'), 'message': _('Unsupported file type.')}}
+
+        # Lagra kolumnnamnen temporärt
+        self.temp_column_names = ','.join(columns)
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'import.format.config',
+            'view_mode': 'form',
+            'res_id': self.id,
+            'target': 'current',
+            'context': {'show_column_mapping': True}
+        }
+
     def action_load_sample_file(self):
         self.ensure_one()
         if not self.sample_file:
@@ -72,19 +99,25 @@ class ImportFormatConfig(models.Model):
                 if mapping.destination_field_name == 'custom' and not mapping.custom_label:
                     raise ValidationError(_("Custom fields must have a label."))
                 
-    def _create_column_mappings(self, columns):
-        ColumnMapping = self.env['import.column.mapping']
-        existing_mappings = {m.source_column: m for m in self.column_mapping}
+    def _create_column_mappings(self):
+        self.ensure_one()
+        ImportColumnMapping = self.env['import.column.mapping']
         
-        for column in columns:
-            if column not in existing_mappings:
-                matching_field = self._find_matching_field(column)
-                ColumnMapping.create({
+        # Remove existing mappings
+        self.column_mapping.unlink()
+        
+        # Create new mappings based on temp_column_names
+        if self.temp_column_names:
+            for column in self.temp_column_names.split(','):
+                ImportColumnMapping.create({
                     'config_id': self.id,
-                    'source_column': column,
-                    'destination_field_name': matching_field if matching_field else 'custom',
-                    'custom_label': column if not matching_field else '',
+                    'source_column': column.strip(),
+                    'destination_field_name': 'custom',  # Default to 'custom', user can change this later
+                    'custom_label': column.strip(),
                 })
+        
+        # Clear temp_column_names after mappings have been created
+        self.temp_column_names = False
 
     def _find_matching_field(self, column):
         fields = dict(self.env['import.column.mapping']._get_destination_field_selection())
@@ -111,15 +144,16 @@ class ImportFormatConfig(models.Model):
     def create(self, vals_list):
         records = super(ImportFormatConfig, self).create(vals_list)
         for record in records:
-            if record.sample_file:
-                record.action_load_sample_file()
+            if record.temp_column_names:
+                record._create_column_mappings()
         return records
 
     def write(self, vals):
-        res = super(ImportFormatConfig, self).write(vals)
-        if 'sample_file' in vals:
-            self.action_load_sample_file()
-        return res
+        result = super(ImportFormatConfig, self).write(vals)
+        if 'temp_column_names' in vals:
+            for record in self:
+                record._create_column_mappings()
+        return result
     
 class ImportCombinationRule(models.Model):
     _name = 'import.combination.rule'
