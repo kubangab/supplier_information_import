@@ -155,7 +155,7 @@ class ImportColumnMapping(models.Model):
     _description = 'Import Column Mapping'
 
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
-    source_column = fields.Char(string='Source Column Name', required=True)
+    source_column = fields.Char(string='Source Column Name', readonly=True)
     destination_field_name = fields.Selection(
         selection='_get_destination_field_selection',
         string='Destination Field Name',
@@ -164,8 +164,6 @@ class ImportColumnMapping(models.Model):
     custom_label = fields.Char(string='Custom Label', translate=True)
     is_required = fields.Boolean(string='Required', compute='_compute_is_required', store=True)
     is_readonly = fields.Boolean(string='Read Only', compute='_compute_is_readonly', store=True)
-
-    display_destination_field_name = fields.Char(string='Display Destination Field', compute='_compute_display_destination_field_name')
 
     _sql_constraints = [
         ('unique_custom_label_per_config', 
@@ -195,23 +193,21 @@ class ImportColumnMapping(models.Model):
     def _get_destination_field_selection(self):
         fields = self.env['incoming.product.info'].fields_get()
         selection = [(name, field['string']) for name, field in fields.items()]
-        selection.append(('custom', 'Custom Field'))
+        selection.append(('custom', 'Create New Field'))
         return selection
-
-    @api.constrains('custom_label', 'destination_field_name')
+    
+    @api.constrains('custom_label')
     def _check_custom_label(self):
         for record in self:
-            if record.destination_field_name != 'custom' and record.custom_label:
-                raise ValidationError(_("Custom label should only be set for custom fields."))
-            if record.destination_field_name == 'custom' and not record.custom_label:
-                raise ValidationError(_("Custom fields must have a non-empty custom label."))
+            if not record.custom_label:
+                raise ValidationError(_("All fields must have a non-empty custom label."))
 
-    @api.onchange('destination_field_name', 'source_column')
+    @api.onchange('destination_field_name')
     def _onchange_destination_field_name(self):
         if self.destination_field_name == 'custom':
             self.custom_label = self.source_column
-        else:
-            self.custom_label = False
+        elif not self.custom_label:
+            self.custom_label = dict(self._fields['destination_field_name'].selection).get(self.destination_field_name)
 
     @api.model
     def create(self, vals):

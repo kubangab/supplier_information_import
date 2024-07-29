@@ -5,9 +5,6 @@
         <field name="model">import.format.config</field>
         <field name="arch" type="xml">
             <form>
-            <header>
-                <button name="action_load_sample_file" string="Analyze File" type="object" class="oe_highlight" attrs="{'invisible': [('sample_file', '=', False)]}"/>
-            </header>
                 <sheet>
                     <group>
                         <field name="name"/>
@@ -20,10 +17,9 @@
                         <page string="Column Mappings">
                             <field name="column_mapping">
                                 <tree editable="bottom">
-                                    <field name="source_column"/>
-                                    <field name="destination_field_name" invisible="1"/>
-                                    <field name="display_destination_field_name" string="Destination Field Name"/>
-                                    <field name="custom_label" attrs="{'invisible': [('destination_field_name', '!=', 'custom')]}"/>
+                                    <field name="source_column" readonly="1"/>
+                                    <field name="destination_field_name" widget="selection"/>
+                                    <field name="custom_label" required="1"/>
                                     <field name="is_required" attrs="{'readonly': [('is_readonly', '=', True)]}"/>
                                     <field name="is_readonly" invisible="1"/>
                                 </tree>
