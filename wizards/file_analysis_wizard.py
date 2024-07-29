@@ -91,8 +91,12 @@ class FileAnalysisWizard(models.TransientModel):
     
         combinations = {}
         for row in data:
-            val1 = row.get(field1.source_column, '').strip()
-            val2 = row.get(field2.source_column, '').strip()
+            val1 = row.get(field1.source_column, '')
+            val2 = row.get(field2.source_column, '')
+            
+            # Convert to string and strip whitespace
+            val1 = str(val1).strip() if val1 is not None else ''
+            val2 = str(val2).strip() if val2 is not None else ''
             
             # Skip rows where either field is empty
             if not val1 or not val2:
