@@ -127,7 +127,7 @@ class ImportCombinationRule(models.Model):
     regex_pattern = fields.Char(string='Regex Pattern', 
                                 help="Optional regex pattern to extract information from combined fields")
     # New field for product code
-    product_code = fields.Char(string='Product Code')
+    product_id = fields.Many2one('product.product', string='Product')
 
     @api.constrains('field_1', 'field_2')
     def _check_fields(self):

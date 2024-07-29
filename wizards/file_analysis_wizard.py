@@ -119,9 +119,6 @@ class FileAnalysisWizard(models.TransientModel):
         return "\n".join(result), dict(sorted_combinations)
 
     def action_create_combination_rules(self):
-        if not self.product_code:
-            raise UserError(("Please enter a Product Code before creating combination rules."))
-
         filtered_combinations = eval(self.filtered_combinations)  # Convert back to dictionary
         ImportCombinationRule = self.env['import.combination.rule']
         for (val1, val2), _ in filtered_combinations.items():
@@ -131,7 +128,6 @@ class FileAnalysisWizard(models.TransientModel):
                 'field_1': self.field_ids[0].id,
                 'field_2': self.field_ids[1].id,
                 'combination_pattern': f"{{{1}}}-{{{2}}}",
-                'product_code': self.product_code,
             })
 
         return {

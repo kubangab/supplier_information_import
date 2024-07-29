@@ -55,6 +55,7 @@
                         <field name="field_2" domain="[('config_id', '=', config_id)]"/>
                         <field name="combination_pattern"/>
                         <field name="regex_pattern"/>
+                        <field name="product_id"/>
                     </group>
                 </sheet>
             </form>
