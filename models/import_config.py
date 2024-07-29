@@ -158,11 +158,7 @@ class ImportColumnMapping(models.Model):
     is_required = fields.Boolean(string='Required', compute='_compute_is_required', store=True)
     is_readonly = fields.Boolean(string='Read Only', compute='_compute_is_readonly', store=True)
 
-
-    rule_field_1_ids = fields.One2many('import.combination.rule', 'field_1', string='Rules using as Field 1')
-    rule_field_2_ids = fields.One2many('import.combination.rule', 'field_2', string='Rules using as Field 2')
-
-    display_destination_field_name = fields.Char(string='Display Destination Field', compute='_compute_display_destination_field_name')    
+    display_destination_field_name = fields.Char(string='Display Destination Field', compute='_compute_display_destination_field_name')
 
     _sql_constraints = [
         ('unique_custom_label_per_config', 
@@ -210,12 +206,6 @@ class ImportColumnMapping(models.Model):
         else:
             self.custom_label = False
 
-    @api.constrains('destination_field_name', 'custom_label')
-    def _check_custom_field(self):
-        for record in self:
-            if record.destination_field_name == 'custom' and not record.custom_label:
-                raise ValidationError(_("Custom fields must have a label."))
-            
     @api.model
     def create(self, vals):
         if vals.get('destination_field_name') != 'custom':
