@@ -172,14 +172,13 @@ class ImportColumnMapping(models.Model):
         selection.append(('custom', 'Custom Field'))
         return selection
 
-    @api.onchange('destination_field_name')
+    @api.onchange('destination_field_name', 'source_column')
     def _onchange_destination_field_name(self):
-        if self.destination_field_name:
-            if self.destination_field_name == 'custom':
-                self.custom_label = self.source_column
-            else:
-                fields = dict(self._get_destination_field_selection())
-                self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
+        if self.destination_field_name == 'custom':
+            self.custom_label = f"Custom: {self.source_column}"
+        elif self.destination_field_name:
+            fields = dict(self._get_destination_field_selection())
+            self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
 
     @api.constrains('destination_field_name', 'custom_label')
     def _check_custom_field(self):
@@ -189,15 +188,18 @@ class ImportColumnMapping(models.Model):
             
     @api.model
     def create(self, vals):
-        if vals.get('destination_field_name') == 'custom' and not vals.get('custom_label'):
-            vals['custom_label'] = vals.get('source_column')
+        if vals.get('destination_field_name') == 'custom':
+            vals['custom_label'] = f"Custom: {vals.get('source_column', '')}"
         return super(ImportColumnMapping, self).create(vals)
-
+    
     def write(self, vals):
         for record in self:
             if 'destination_field_name' in vals:
-                if vals['destination_field_name'] == 'custom' and not vals.get('custom_label'):
-                    vals['custom_label'] = record.source_column
-            elif record.destination_field_name == 'custom' and 'custom_label' not in vals:
-                vals['custom_label'] = record.source_column
+                if vals['destination_field_name'] == 'custom':
+                    vals['custom_label'] = f"Custom: {record.source_column}"
+                elif 'custom_label' not in vals:
+                    fields = dict(self._get_destination_field_selection())
+                    vals['custom_label'] = fields.get(vals['destination_field_name'], vals['destination_field_name'])
+            elif record.destination_field_name == 'custom' and 'source_column' in vals:
+                vals['custom_label'] = f"Custom: {vals['source_column']}"
         return super(ImportColumnMapping, self).write(vals)
