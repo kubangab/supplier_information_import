@@ -249,4 +249,4 @@ class ImportColumnMapping(models.Model):
                 if callable(selection):
                     selection = selection(self)
             selection_dict = dict(selection)
-                record.custom_label = selection_dict.get(record.destination_field_name, record.destination_field_name)
+            record.custom_label = selection_dict.get(record.destination_field_name, record.destination_field_name)
