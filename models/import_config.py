@@ -155,8 +155,9 @@ class ImportColumnMapping(models.Model):
         required=True
     )
     custom_label = fields.Char(string='Custom Label', translate=True)
-    is_required = fields.Boolean(string='Required')
+    is_required = fields.Boolean(string='Required', compute='_compute_is_required', store=True)
     is_readonly = fields.Boolean(string='Read Only', compute='_compute_is_readonly', store=True)
+
 
     rule_field_1_ids = fields.One2many('import.combination.rule', 'field_1', string='Rules using as Field 1')
     rule_field_2_ids = fields.One2many('import.combination.rule', 'field_2', string='Rules using as Field 2')
@@ -167,6 +168,11 @@ class ImportColumnMapping(models.Model):
         ('unique_custom_label_per_config', 'unique(config_id, custom_label)', 
          'Custom label must be unique per configuration.')
     ]
+
+    @api.depends('destination_field_name')
+    def _compute_is_required(self):
+        for record in self:
+            record.is_required = record.destination_field_name in ['sn', 'model_no']
 
     @api.depends('destination_field_name')
     def _compute_is_readonly(self):
@@ -209,10 +215,8 @@ class ImportColumnMapping(models.Model):
         return super(ImportColumnMapping, self).create(vals)
 
     def write(self, vals):
+        res = super(ImportColumnMapping, self).write(vals)
         for record in self:
-            if 'destination_field_name' in vals:
-                if vals['destination_field_name'] in ['sn', 'model_no']:
-                    vals['is_required'] = True
-                elif record.destination_field_name in ['sn', 'model_no']:
-                    vals['is_required'] = True
-        return super(ImportColumnMapping, self).write(vals)
+            if record.destination_field_name in ['sn', 'model_no']:
+                record.is_required = True
+        return res
