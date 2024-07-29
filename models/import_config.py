@@ -195,7 +195,7 @@ class ImportColumnMapping(models.Model):
         selection.append(('custom', 'Custom Field'))
         return selection
 
-   @api.constrains('custom_label', 'destination_field_name')
+    @api.constrains('custom_label', 'destination_field_name')
     def _check_custom_label(self):
         for record in self:
             if record.destination_field_name != 'custom' and record.custom_label:
