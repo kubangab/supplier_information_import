@@ -45,9 +45,9 @@ class FileAnalysisWizard(models.TransientModel):
     def action_analyze_file(self):
         self.ensure_one()
         if not self.file:
-            return {'warning': {'title': _("Error"), 'message': _("Please upload a file.")}}
+            return {'warning': {'title': "Error", 'message': "Please upload a file."}}
         if len(self.field_ids) != 2:
-            return {'warning': {'title': _("Error"), 'message': _("Please select exactly two fields for analysis.")}}
+            return {'warning': {'title': "Error", 'message': "Please select exactly two fields for analysis."}}
 
         file_content = base64.b64decode(self.file)
         
@@ -65,7 +65,7 @@ class FileAnalysisWizard(models.TransientModel):
         })
 
         return {
-            'name': _('File Analysis Result'),
+            'name': 'File Analysis Result',
             'type': 'ir.actions.act_window',
             'res_model': 'file.analysis.wizard',
             'view_mode': 'form',
@@ -132,7 +132,7 @@ class FileAnalysisWizard(models.TransientModel):
             })
 
         return {
-            'name': _('Combination Rules'),
+            'name': 'Combination Rules',
             'type': 'ir.actions.act_window',
             'res_model': 'import.combination.rule',
             'view_mode': 'tree,form',
