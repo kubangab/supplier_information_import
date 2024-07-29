@@ -176,7 +176,7 @@ class ImportColumnMapping(models.Model):
     def _onchange_destination_field_name(self):
         if self.destination_field_name:
             if self.destination_field_name == 'custom':
-                self.custom_label = self.source_column  # Detta är den nya raden
+                self.custom_label = self.source_column
             else:
                 fields = dict(self._get_destination_field_selection())
                 self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
@@ -186,3 +186,18 @@ class ImportColumnMapping(models.Model):
         for record in self:
             if record.destination_field_name == 'custom' and not record.custom_label:
                 raise ValidationError(_("Custom fields must have a label."))
+            
+   @api.model
+    def create(self, vals):
+        if vals.get('destination_field_name') == 'custom' and not vals.get('custom_label'):
+            vals['custom_label'] = vals.get('source_column')
+        return super(ImportColumnMapping, self).create(vals)
+
+    def write(self, vals):
+        for record in self:
+            if 'destination_field_name' in vals:
+                if vals['destination_field_name'] == 'custom' and not vals.get('custom_label'):
+                    vals['custom_label'] = record.source_column
+            elif record.destination_field_name == 'custom' and 'custom_label' not in vals:
+                vals['custom_label'] = record.source_column
+        return super(ImportColumnMapping, self).write(vals)
