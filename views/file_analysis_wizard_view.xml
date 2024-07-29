@@ -16,8 +16,14 @@
                 <group>
                     <field name="analysis_result" readonly="1" attrs="{'invisible': [('analysis_result', '=', False)]}"/>
                 </group>
+                <!-- New field for product code -->
+                <group attrs="{'invisible': [('analysis_result', '=', False)]}">
+                    <field name="product_code"/>
+                </group>
                 <footer>
                     <button name="action_analyze_file" string="Analyze" type="object" class="btn-primary"/>
+                    <!-- New button for creating combination rules -->
+                    <button name="action_create_combination_rules" string="Create Combination Rules" type="object" class="btn-secondary" attrs="{'invisible': [('analysis_result', '=', False)]}"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

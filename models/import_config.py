@@ -18,6 +18,7 @@ class ImportFormatConfig(models.Model):
     supplier_id = fields.Many2one('res.partner', string='Supplier', domain=[('supplier_rank', '>', 0)], required=True)
     sample_file = fields.Binary(string='Sample File')
     sample_file_name = fields.Char(string='Sample File Name')
+    product_code = fields.Char(string='Product Code')
 
     @api.model
     def get_incoming_product_info_fields(self):
@@ -27,7 +28,7 @@ class ImportFormatConfig(models.Model):
     def action_load_sample_file(self):
         self.ensure_one()
         if not self.sample_file:
-            raise exceptions.UserError('Please upload a sample file first.')
+            raise exceptions.UserError(_('Please upload a sample file first.'))
 
         file_content = base64.b64decode(self.sample_file)
         
@@ -36,7 +37,7 @@ class ImportFormatConfig(models.Model):
         elif self.file_type == 'excel':
             columns = self._read_excel_columns(file_content)
         else:
-            raise exceptions.UserError('Unsupported file type.')
+            raise exceptions.UserError(_('Unsupported file type.'))
 
         self._create_column_mappings(columns)
 
@@ -125,6 +126,8 @@ class ImportCombinationRule(models.Model):
                                       help="Use {1} and {2} to represent fields. E.g., '{1}-{2}'")
     regex_pattern = fields.Char(string='Regex Pattern', 
                                 help="Optional regex pattern to extract information from combined fields")
+    # New field for product code
+    product_code = fields.Char(string='Product Code')
 
     @api.constrains('field_1', 'field_2')
     def _check_fields(self):
@@ -137,6 +140,7 @@ class ImportCombinationRule(models.Model):
         for rule in self:
             if '{1}' not in rule.combination_pattern or '{2}' not in rule.combination_pattern:
                 raise exceptions.ValidationError(_("Combination Pattern must contain both {1} and {2}"))
+
 
 
 class ImportColumnMapping(models.Model):

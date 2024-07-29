@@ -1,9 +1,10 @@
-from odoo import models, fields, api, _
 import base64
 import csv
 import io
 import xlrd
 import logging
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -19,6 +20,12 @@ class FileAnalysisWizard(models.TransientModel):
                                  domain="[('config_id', '=', import_config_id)]")
     field_names = fields.Char(compute='_compute_field_names', string='Available Fields')
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
+    
+    # New field for product code
+    product_code = fields.Char(string='Product Code')
+    
+    # New field to store filtered combinations
+    filtered_combinations = fields.Text(string='Filtered Combinations')
 
     @api.depends('import_config_id.column_mapping')
     def _compute_field_names(self):
@@ -51,8 +58,11 @@ class FileAnalysisWizard(models.TransientModel):
         else:
             return {'warning': {'title': _("Error"), 'message': _("Unsupported file type.")}}
 
-        analysis_result = self._analyze_data(data)
-        self.write({'analysis_result': analysis_result})
+        analysis_result, filtered_combinations = self._analyze_data(data)
+        self.write({
+            'analysis_result': analysis_result,
+            'filtered_combinations': repr(filtered_combinations)  # Store as string representation
+        })
 
         return {
             'name': _('File Analysis Result'),
@@ -84,11 +94,36 @@ class FileAnalysisWizard(models.TransientModel):
             key = (row.get(field1.source_column, ''), row.get(field2.source_column, ''))
             combinations[key] = combinations.get(key, 0) + 1
 
+        # Filter out combinations where field1 has only one unique match in field2
+        filtered_combinations = {k: v for k, v in combinations.items() 
+                                 if len([c for c in combinations if c[0] == k[0]]) > 1}
+
         result = [f"Analysis of {field1_name} and {field2_name}:"]
-        for (val1, val2), count in combinations.items():
+        for (val1, val2), count in filtered_combinations.items():
             result.append(f"{field1_name}: {val1}, {field2_name}: {val2} - Count: {count}")
 
-        return "\n".join(result)
+        return "\n".join(result), filtered_combinations
+
+    def action_create_combination_rules(self):
+        if not self.product_code:
+            raise UserError(_("Please enter a Product Code before creating combination rules."))
+
+        filtered_combinations = eval(self.filtered_combinations)  # Convert back to dictionary
+        ImportCombinationRule = self.env['import.combination.rule']
+        for (val1, val2), _ in filtered_combinations.items():
+            ImportCombinationRule.create({
+                'config_id': self.import_config_id.id,
+                'name': f"{val1} - {val2}",
+                'field_1': self.field_ids[0].id,
+                'field_2': self.field_ids[1].id,
+                'combination_pattern': f"{{{1}}}-{{{2}}}",
+                'product_code': self.product_code,
+            })
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'reload',
+        }
 
 class ImportColumnMapping(models.Model):
     _inherit = 'import.column.mapping'
