@@ -160,10 +160,20 @@ class ImportColumnMapping(models.Model):
     rule_field_1_ids = fields.One2many('import.combination.rule', 'field_1', string='Rules using as Field 1')
     rule_field_2_ids = fields.One2many('import.combination.rule', 'field_2', string='Rules using as Field 2')
 
+    display_destination_field_name = fields.Char(string='Display Destination Field', compute='_compute_display_destination_field_name')    
+
     _sql_constraints = [
         ('unique_custom_label_per_config', 'unique(config_id, custom_label)', 
          'Custom label must be unique per configuration.')
     ]
+
+    @api.depends('destination_field_name', 'source_column')
+    def _compute_display_destination_field_name(self):
+        for record in self:
+            if record.destination_field_name == 'custom':
+                record.display_destination_field_name = f"Custom: {record.source_column}"
+            else:
+                record.display_destination_field_name = dict(self._get_destination_field_selection()).get(record.destination_field_name, '')
 
     @api.model
     def _get_destination_field_selection(self):
@@ -175,7 +185,7 @@ class ImportColumnMapping(models.Model):
     @api.onchange('destination_field_name', 'source_column')
     def _onchange_destination_field_name(self):
         if self.destination_field_name == 'custom':
-            self.custom_label = f"Custom: {self.source_column}"
+            self.custom_label = self.source_column
         elif self.destination_field_name:
             fields = dict(self._get_destination_field_selection())
             self.custom_label = fields.get(self.destination_field_name, self.destination_field_name)
@@ -189,17 +199,11 @@ class ImportColumnMapping(models.Model):
     @api.model
     def create(self, vals):
         if vals.get('destination_field_name') == 'custom':
-            vals['custom_label'] = f"Custom: {vals.get('source_column', '')}"
+            vals['custom_label'] = vals.get('source_column', '')
         return super(ImportColumnMapping, self).create(vals)
     
     def write(self, vals):
         for record in self:
-            if 'destination_field_name' in vals:
-                if vals['destination_field_name'] == 'custom':
-                    vals['custom_label'] = f"Custom: {record.source_column}"
-                elif 'custom_label' not in vals:
-                    fields = dict(self._get_destination_field_selection())
-                    vals['custom_label'] = fields.get(vals['destination_field_name'], vals['destination_field_name'])
-            elif record.destination_field_name == 'custom' and 'source_column' in vals:
-                vals['custom_label'] = f"Custom: {vals['source_column']}"
+            if 'destination_field_name' in vals and vals['destination_field_name'] == 'custom':
+                vals['custom_label'] = record.source_column
         return super(ImportColumnMapping, self).write(vals)
