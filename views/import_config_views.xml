@@ -42,6 +42,21 @@
         </field>
     </record>
 
+    <record id="view_import_combination_rule_tree" model="ir.ui.view">
+        <field name="name">import.combination.rule.tree</field>
+        <field name="model">import.combination.rule</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="config_id" invisible="1"/>
+                <field name="field_1"/>
+                <field name="value_1"/>
+                <field name="field_2"/>
+                <field name="value_2"/>
+                <field name="product_id"/>
+            </tree>
+        </field>
+    </record>
+    
     <record id="view_import_combination_rule_form" model="ir.ui.view">
         <field name="name">import.combination.rule.form</field>
         <field name="model">import.combination.rule</field>
@@ -49,19 +64,19 @@
             <form>
                 <sheet>
                     <group>
-                        <field name="config_id"/>
+                        <field name="config_id" invisible="1"/>
                         <field name="name"/>
                         <field name="field_1" domain="[('config_id', '=', config_id)]"/>
+                        <field name="value_1"/>
                         <field name="field_2" domain="[('config_id', '=', config_id)]"/>
-                        <field name="combination_pattern"/>
-                        <field name="regex_pattern"/>
+                        <field name="value_2"/>
                         <field name="product_id"/>
                     </group>
                 </sheet>
             </form>
         </field>
     </record>
-
+    
     <record id="view_import_format_config_tree" model="ir.ui.view">
         <field name="name">import.format.config.tree</field>
         <field name="model">import.format.config</field>

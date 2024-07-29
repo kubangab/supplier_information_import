@@ -124,15 +124,20 @@ class FileAnalysisWizard(models.TransientModel):
         for (val1, val2), _ in filtered_combinations.items():
             ImportCombinationRule.create({
                 'config_id': self.import_config_id.id,
-                'name': f"{val1} - {val2}",
                 'field_1': self.field_ids[0].id,
                 'field_2': self.field_ids[1].id,
-                'combination_pattern': f"{{{1}}}-{{{2}}}",
+                'value_1': val1,
+                'value_2': val2,
+                'name': f"{val1} - {val2}",
             })
 
         return {
-            'type': 'ir.actions.client',
-            'tag': 'reload',
+            'name': _('Combination Rules'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'import.combination.rule',
+            'view_mode': 'tree,form',
+            'domain': [('config_id', '=', self.import_config_id.id)],
+            'context': {'default_config_id': self.import_config_id.id},
         }
 
 class ImportColumnMapping(models.Model):
