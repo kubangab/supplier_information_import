@@ -106,7 +106,7 @@ class FileAnalysisWizard(models.TransientModel):
 
     def action_create_combination_rules(self):
         if not self.product_code:
-            raise UserError(_("Please enter a Product Code before creating combination rules."))
+            raise UserError(("Please enter a Product Code before creating combination rules."))
 
         filtered_combinations = eval(self.filtered_combinations)  # Convert back to dictionary
         ImportCombinationRule = self.env['import.combination.rule']
