@@ -56,36 +56,42 @@ class ImportFormatConfig(models.Model):
 
     @api.model
     def action_load_sample_columns(self):
-        self.ensure_one()
-        if not self.sample_file:
+        active_id = self._context.get('active_id')
+        if not active_id:
+            return {'warning': {'title': _('Error'), 'message': _('No active record found.')}}
+        
+        record = self.browse(active_id)
+        if not record.sample_file:
             return {'warning': {'title': _('Error'), 'message': _('Please upload a sample file first.')}}
     
-        file_content = base64.b64decode(self.sample_file)
+        file_content = base64.b64decode(record.sample_file)
         
-        if self.file_type == 'csv':
+        if record.file_type == 'csv':
             columns = self._read_csv_columns(file_content)
-        elif self.file_type == 'excel':
+        elif record.file_type == 'excel':
             columns = self._read_excel_columns(file_content)
         else:
             return {'warning': {'title': _('Error'), 'message': _('Unsupported file type.')}}
     
         # Store column names temporarily
-        self.temp_column_names = ','.join(columns)
+        record.temp_column_names = ','.join(columns)
     
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'import.format.config',
             'view_mode': 'form',
-            'res_id': self.id,
+            'res_id': active_id,
             'target': 'current',
             'context': {'show_column_mapping': True}
         }
     
+    @api.model
     def _read_csv_columns(self, file_content):
         csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
         reader = csv.reader(csv_data)
         return next(reader, [])
-
+    
+    @api.model
     def _read_excel_columns(self, file_content):
         workbook = xlrd.open_workbook(file_contents=file_content)
         sheet = workbook.sheet_by_index(0)

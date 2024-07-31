@@ -11,7 +11,7 @@
                             type="object" 
                             class="oe_highlight" 
                             attrs="{'invisible': [('sample_file', '=', False)]}"
-                            context="{'active_id': active_id, 'active_model': 'import.format.config'}"/>
+                            context="{'active_id': active_id}"/>
                 </header>
                 <sheet>
                     <group>
