@@ -6,7 +6,12 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_load_sample_columns" string="Load Sample Columns" type="object" class="oe_highlight" attrs="{'invisible': [('sample_file', '=', False)]}"/>
+                    <button name="action_load_sample_columns" 
+                            string="Load Sample Columns" 
+                            type="object" 
+                            class="oe_highlight" 
+                            attrs="{'invisible': [('sample_file', '=', False)]}"
+                            context="{'active_id': active_id, 'active_model': 'import.format.config'}"/>
                 </header>
                 <sheet>
                     <group>

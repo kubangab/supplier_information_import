@@ -54,11 +54,12 @@ class ImportFormatConfig(models.Model):
             'context': {'show_column_mapping': True}
         }
 
-    def action_load_sample_file(self):
+    @api.model
+    def action_load_sample_columns(self):
         self.ensure_one()
         if not self.sample_file:
-            raise exceptions.UserError(_('Please upload a sample file first.'))
-
+            return {'warning': {'title': _('Error'), 'message': _('Please upload a sample file first.')}}
+    
         file_content = base64.b64decode(self.sample_file)
         
         if self.file_type == 'csv':
@@ -66,19 +67,18 @@ class ImportFormatConfig(models.Model):
         elif self.file_type == 'excel':
             columns = self._read_excel_columns(file_content)
         else:
-            raise exceptions.UserError(_('Unsupported file type.'))
-
+            return {'warning': {'title': _('Error'), 'message': _('Unsupported file type.')}}
+    
+        # Store column names temporarily
+        self.temp_column_names = ','.join(columns)
+    
         return {
-            'name': 'Analyze File',
             'type': 'ir.actions.act_window',
-            'res_model': 'file.analysis.wizard',
+            'res_model': 'import.format.config',
             'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_import_config_id': self.id,
-                'default_file': self.sample_file,
-                'default_file_name': self.sample_file_name,
-            }
+            'res_id': self.id,
+            'target': 'current',
+            'context': {'show_column_mapping': True}
         }
     
     def _read_csv_columns(self, file_content):
