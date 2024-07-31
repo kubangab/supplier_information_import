@@ -26,6 +26,8 @@ class ImportFormatConfig(models.Model):
     def get_incoming_product_info_fields(self):
         return [(field, self.env['incoming.product.info']._fields[field].string) 
                 for field in self.env['incoming.product.info']._fields]
+    
+    @api.model
     def action_load_sample_columns(self):
         self.ensure_one()
         if not self.sample_file:
@@ -42,19 +44,6 @@ class ImportFormatConfig(models.Model):
     
         # Store column names temporarily
         self.temp_column_names = ','.join(columns)
-    
-        # Clear existing column mappings
-        self.column_mapping.unlink()
-    
-        # Create temporary column mappings
-        ImportColumnMapping = self.env['import.column.mapping'].with_context(no_validation=True)
-        for column in columns:
-            ImportColumnMapping.create({
-                'config_id': self.id,
-                'source_column': column.strip(),
-                'destination_field_name': 'custom',
-                'custom_label': column.strip(),
-            })
     
         return {
             'type': 'ir.actions.act_window',
@@ -165,6 +154,26 @@ class ImportFormatConfig(models.Model):
             for record in self:
                 record._create_column_mappings()
         return result
+
+    def _create_column_mappings(self):
+        self.ensure_one()
+        ImportColumnMapping = self.env['import.column.mapping']
+        
+        # Remove existing mappings
+        self.column_mapping.unlink()
+        
+        # Create new mappings based on temp_column_names
+        if self.temp_column_names:
+            for column in self.temp_column_names.split(','):
+                ImportColumnMapping.create({
+                    'config_id': self.id,
+                    'source_column': column.strip(),
+                    'destination_field_name': 'custom',
+                    'custom_label': column.strip(),
+                })
+        
+        # Clear temp_column_names after mappings have been created
+        self.temp_column_names = False
     
 class ImportCombinationRule(models.Model):
     _name = 'import.combination.rule'
@@ -263,7 +272,7 @@ class ImportColumnMapping(models.Model):
         if self.env.context.get('no_validation'):
             return super(ImportColumnMapping, self.with_context(no_constraints=True)).create(vals_list)
         return super(ImportColumnMapping, self).create(vals_list)
-    
+
     def write(self, vals):
         if 'destination_field_name' in vals and 'custom_label' not in vals:
             if vals['destination_field_name'] == 'custom':
