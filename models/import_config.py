@@ -26,7 +26,6 @@ class ImportFormatConfig(models.Model):
     def get_incoming_product_info_fields(self):
         return [(field, self.env['incoming.product.info']._fields[field].string) 
                 for field in self.env['incoming.product.info']._fields]
-
     def action_load_sample_columns(self):
         self.ensure_one()
         if not self.sample_file:
@@ -47,12 +46,15 @@ class ImportFormatConfig(models.Model):
         # Clear existing column mappings
         self.column_mapping.unlink()
     
-        # Create temporary column mappings without saving to database
-        self.column_mapping = [(0, 0, {
-            'source_column': column.strip(),
-            'destination_field_name': 'custom',
-            'custom_label': column.strip(),
-        }) for column in columns]
+        # Create temporary column mappings
+        ImportColumnMapping = self.env['import.column.mapping'].with_context(no_validation=True)
+        for column in columns:
+            ImportColumnMapping.create({
+                'config_id': self.id,
+                'source_column': column.strip(),
+                'destination_field_name': 'custom',
+                'custom_label': column.strip(),
+            })
     
         return {
             'type': 'ir.actions.act_window',
@@ -239,11 +241,11 @@ class ImportColumnMapping(models.Model):
         selection.append(('custom', 'Create New Field'))
         return selection
     
-    @api.constrains('custom_label')
+    @api.constrains('custom_label', 'destination_field_name')
     def _check_custom_label(self):
         for record in self:
-            if record.id and not record.custom_label:  # Only check if the record has been saved
-                raise exceptions.UserError(_("All fields must have a non-empty custom label."))
+            if record.id and record.destination_field_name != 'custom' and not record.custom_label:
+                raise ValidationError(_("All non-custom fields must have a non-empty custom label."))
 
     @api.onchange('destination_field_name')
     def _onchange_destination_field_name(self):
@@ -256,18 +258,11 @@ class ImportColumnMapping(models.Model):
             selection_dict = dict(selection)
             self.custom_label = selection_dict.get(self.destination_field_name, self.destination_field_name)
 
-    @api.model
-    def create(self, vals):
-        if not vals.get('custom_label'):
-            if vals.get('destination_field_name') == 'custom':
-                vals['custom_label'] = vals.get('source_column', '')
-            else:
-                selection = self._fields['destination_field_name'].selection
-                if callable(selection):
-                    selection = selection(self)
-                selection_dict = dict(selection)
-                vals['custom_label'] = selection_dict.get(vals.get('destination_field_name', ''), vals.get('destination_field_name', ''))
-        return super(ImportColumnMapping, self).create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        if self.env.context.get('no_validation'):
+            return super(ImportColumnMapping, self.with_context(no_constraints=True)).create(vals_list)
+        return super(ImportColumnMapping, self).create(vals_list)
     
     def write(self, vals):
         if 'destination_field_name' in vals and 'custom_label' not in vals:

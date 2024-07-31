@@ -16,17 +16,17 @@
                         <field name="sample_file" filename="sample_file_name"/>
                         <field name="sample_file_name" invisible="1"/>
                     </group>
-                    <notebook attrs="{'invisible': [('temp_column_names', '=', False)]}">
-                        <page string="Column Mappings">
-                            <field name="column_mapping">
-                                <tree editable="bottom" create="false" delete="false">
-                                    <field name="source_column" readonly="1"/>
-                                    <field name="destination_field_name" widget="selection"/>
-                                    <field name="custom_label"/>
-                                </tree>
-                            </field>
-                        </page>
-                    </notebook>
+                        <notebook>
+                            <page string="Column Mappings" attrs="{'invisible': [('temp_column_names', '=', False)]}">
+                                <field name="column_mapping">
+                                    <tree editable="bottom" create="false" delete="false">
+                                        <field name="source_column" readonly="1"/>
+                                        <field name="destination_field_name" widget="selection"/>
+                                        <field name="custom_label"/>
+                                    </tree>
+                                </field>
+                            </page>
+                        </notebook>
                     <field name="temp_column_names" invisible="1"/>
                 </sheet>
             </form>
