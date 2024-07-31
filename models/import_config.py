@@ -20,39 +20,12 @@ class ImportFormatConfig(models.Model):
     sample_file_name = fields.Char(string='Sample File Name')
     product_code = fields.Char(string='Product Code')
     previous_mappings = fields.Text(string='Previous Mappings')
-    temp_column_names = fields.Text(string='Temporary Column Names')
 
     @api.model
     def get_incoming_product_info_fields(self):
         return [(field, self.env['incoming.product.info']._fields[field].string) 
                 for field in self.env['incoming.product.info']._fields]
     
-    @api.model
-    def action_load_sample_columns(self):
-        self.ensure_one()
-        if not self.sample_file:
-            return {'warning': {'title': _('Error'), 'message': _('Please upload a sample file first.')}}
-    
-        file_content = base64.b64decode(self.sample_file)
-        
-        if self.file_type == 'csv':
-            columns = self._read_csv_columns(file_content)
-        elif self.file_type == 'excel':
-            columns = self._read_excel_columns(file_content)
-        else:
-            return {'warning': {'title': _('Error'), 'message': _('Unsupported file type.')}}
-    
-        # Store column names temporarily
-        self.temp_column_names = ','.join(columns)
-    
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'import.format.config',
-            'view_mode': 'form',
-            'res_id': self.id,
-            'target': 'current',
-            'context': {'show_column_mapping': True}
-        }
 
     @api.model
     def action_load_sample_columns(self, **kwargs):
@@ -78,13 +51,11 @@ class ImportFormatConfig(models.Model):
         self.temp_column_names = ','.join(columns)
         return True
     
-    @api.model
     def _read_csv_columns(self, file_content):
         csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
         reader = csv.reader(csv_data)
         return next(reader, [])
-    
-    @api.model
+
     def _read_excel_columns(self, file_content):
         workbook = xlrd.open_workbook(file_contents=file_content)
         sheet = workbook.sheet_by_index(0)
@@ -119,15 +90,14 @@ class ImportFormatConfig(models.Model):
         # Clear temp_column_names after mappings have been created
         self.temp_column_names = False
     def _find_matching_field(self, column):
-        fields = dict(self.env['import.column.mapping']._get_destination_field_selection())
         column_lower = column.lower().replace(' ', '_')
         
         # Direct matching
-        if column_lower in fields:
+        if column_lower in self.env['incoming.product.info']._fields:
             return column_lower
         
         # Fuzzy matching
-        for field in fields:
+        for field in self.env['incoming.product.info']._fields:
             if column_lower in field or field in column_lower:
                 return field
         
@@ -139,20 +109,45 @@ class ImportFormatConfig(models.Model):
         
         return False
     
-    @api.model_create_multi
-    def create(self, vals_list):
-        records = super(ImportFormatConfig, self).create(vals_list)
-        for record in records:
-            if record.temp_column_names:
-                record._create_column_mappings()
-        return records
+    @api.model
+    def create(self, vals):
+        record = super(ImportFormatConfig, self).create(vals)
+        if record.sample_file:
+            record._process_sample_file()
+        return record
 
     def write(self, vals):
-        result = super(ImportFormatConfig, self).write(vals)
-        if 'temp_column_names' in vals:
-            for record in self:
-                record._create_column_mappings()
-        return result
+        res = super(ImportFormatConfig, self).write(vals)
+        if 'sample_file' in vals:
+            self._process_sample_file()
+        return res
+
+    def _process_sample_file(self):
+        self.ensure_one()
+        if not self.sample_file:
+            return
+
+        file_content = base64.b64decode(self.sample_file)
+        
+        if self.file_type == 'csv':
+            columns = self._read_csv_columns(file_content)
+        elif self.file_type == 'excel':
+            columns = self._read_excel_columns(file_content)
+        else:
+            raise exceptions.UserError(_('Unsupported file type.'))
+
+        existing_fields = self.env['incoming.product.info'].fields_get().keys()
+        ImportColumnMapping = self.env['import.column.mapping']
+
+        for column in columns:
+            matching_field = self._find_matching_field(column)
+            mapping_vals = {
+                'config_id': self.id,
+                'source_column': column,
+                'destination_field_name': matching_field if matching_field in existing_fields else 'custom',
+                'custom_label': column if matching_field not in existing_fields else False,
+            }
+            ImportColumnMapping.create(mapping_vals)
 
     def _create_column_mappings(self):
         self.ensure_one()
