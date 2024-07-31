@@ -56,12 +56,17 @@ class ImportFormatConfig(models.Model):
 
     @api.model
     def action_load_sample_columns(self, **kwargs):
+        # Ensure only one record is being processed
         self.ensure_one()
+        
+        # Check if a sample file is uploaded
         if not self.sample_file:
             return {'warning': {'title': _('Error'), 'message': _('Please upload a sample file first.')}}
         
+        # Decode the file content
         file_content = base64.b64decode(self.sample_file)
         
+        # Process based on file type
         if self.file_type == 'csv':
             columns = self._read_csv_columns(file_content)
         elif self.file_type == 'excel':
@@ -69,7 +74,7 @@ class ImportFormatConfig(models.Model):
         else:
             return {'warning': {'title': _('Error'), 'message': _('Unsupported file type.')}}
         
-        # Store column names temporarily
+        # Store the column names temporarily
         self.temp_column_names = ','.join(columns)
         return True
     
