@@ -36,6 +36,7 @@
                             <field name="mac1"/>
                             <field name="mac2"/>
                             <field name="imei"/>
+                            <field name="app_eui"/>
                             <field name="app_key"/>
                             <field name="dev_eui"/>
                         </group>

@@ -5,6 +5,10 @@
         <field name="model">file.analysis.wizard</field>
         <field name="arch" type="xml">
             <form string="File Analysis">
+                <field name="state" invisible="1"/>
+                <div class="alert alert-warning" role="alert" attrs="{'invisible': [('state', '!=', 'warning')]}">
+                    <field name="warning_message" readonly="1"/>
+                </div>
                 <group>
                     <field name="import_config_id"/>
                     <field name="file" filename="file_name"/>
@@ -36,10 +40,4 @@
         <field name="view_mode">form</field>
         <field name="target">new</field>
     </record>
-
-    <menuitem id="menu_file_analysis_wizard"
-              name="Analyze Import File"
-              action="action_file_analysis_wizard"
-              parent="menu_product_info_import"
-              sequence="30"/>
 </odoo>

@@ -14,6 +14,7 @@ class IncomingProductInfo(models.Model):
     mac2 = fields.Char(string='MAC2')
     model_no = fields.Char(string='Model No.')
     imei = fields.Char(string='IMEI')
+    app_eui = fields.Char(string='AppEUI')
     app_key = fields.Char(string='AppKey')
     app_key_mode = fields.Char(string='AppKeyMode')
     pn = fields.Char(string='PN')
@@ -48,18 +49,36 @@ class IncomingProductInfo(models.Model):
 
     @api.model
     def _get_combined_code(self, values, config):
+        if not config.combination_rule_ids:
+            return values.get('supplier_product_code')  # fallback to supplier_product_code if no rules
+    
         for rule in config.combination_rule_ids:
-            field1_value = values.get(rule.field_1.source_column, '')
-            field2_value = values.get(rule.field_2.source_column, '')
-            combined = rule.combination_pattern.format(field1_value, field2_value)
-            
-            if rule.regex_pattern:
-                match = re.search(rule.regex_pattern, combined)
-                if match:
-                    return match.group(1)  # Assuming the first captured group is the desired code
-            else:
-                return combined
-        return None
+            if not rule.field_1 or not rule.field_2 or not rule.combination_pattern:
+                continue  # skip incomplete rules
+    
+            field1_value = values.get(rule.field_1.destination_field_name, '')
+            field2_value = values.get(rule.field_2.destination_field_name, '')
+    
+            if not field1_value or not field2_value:
+                continue  # skip if we don't have values for both fields
+    
+            # Check if the values match the rule
+            if ((not rule.value_1 or field1_value == rule.value_1) and 
+                (not rule.value_2 or field2_value == rule.value_2)):
+                combined = rule.combination_pattern.format(field1_value, field2_value)
+                
+                if rule.regex_pattern:
+                    match = re.search(rule.regex_pattern, combined)
+                    if match:
+                        return match.group(1)  # Assuming the first captured group is the desired code
+                else:
+                    return combined
+    
+        # If we get here, no rule matched or produced a result
+        return values.get('supplier_product_code')  # fallback to supplier_product_code
+    
+        # If we get here, no rule matched or produced a result
+        return values.get('supplier_product_code')  # fallback to supplier_product_code
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'

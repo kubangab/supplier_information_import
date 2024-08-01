@@ -20,6 +20,9 @@ class FileAnalysisWizard(models.TransientModel):
                                  domain="[('config_id', '=', import_config_id)]")
     field_names = fields.Char(compute='_compute_field_names', string='Available Fields')
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
+
+    state = fields.Selection([('draft', 'Draft'), ('warning', 'Warning'), ('done', 'Done')], default='draft')
+    warning_message = fields.Char(string='Warning Message')
     
     # New field for product code
     product_code = fields.Char(string='Product Code')
@@ -45,9 +48,11 @@ class FileAnalysisWizard(models.TransientModel):
     def action_analyze_file(self):
         self.ensure_one()
         if not self.file:
-            return {'warning': {'title': "Error", 'message': "Please upload a file."}}
+            self.write({'state': 'warning', 'warning_message': _("Please upload a file.")})
+            return self._reopen_view()
         if len(self.field_ids) != 2:
-            return {'warning': {'title': "Error", 'message': "Please select exactly two fields for analysis."}}
+            self.write({'state': 'warning', 'warning_message': _("Please select exactly two fields for analysis.")})
+            return self._reopen_view()
     
         file_content = base64.b64decode(self.file)
         
@@ -65,12 +70,29 @@ class FileAnalysisWizard(models.TransientModel):
         })
 
         return {
-            'name': 'File Analysis Result',
+            'name': _('File Analysis Result'),
             'type': 'ir.actions.act_window',
             'res_model': 'file.analysis.wizard',
             'view_mode': 'form',
             'res_id': self.id,
             'target': 'new',
+            'context': {'form_view_initial_mode': 'edit'},
+        }
+        self.write({
+            'analysis_result': analysis_result,
+            'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False,
+            'state': 'done'
+        })
+
+    def _reopen_view(self):
+        return {
+            'name': _('File Analysis Result'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'file.analysis.wizard',
+            'view_mode': 'form',
+            'res_id': self.id,
+            'target': 'new',
+            'context': {'form_view_initial_mode': 'edit'},
         }
 
     def _process_csv(self, file_content):

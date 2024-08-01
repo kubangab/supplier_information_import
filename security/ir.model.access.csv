@@ -6,3 +6,4 @@ access_import_column_mapping_user,import.column.mapping.user,model_import_column
 access_receive_products_wizard_user,receive.products.wizard.user,model_receive_products_wizard,base.group_user,1,1,1,1
 access_import_combination_rule_user,import.combination.rule.user,model_import_combination_rule,base.group_user,1,1,1,1
 access_file_analysis_wizard_user,file.analysis.wizard.user,model_file_analysis_wizard,base.group_user,1,1,1,1
+access_unmatched_model_no_user,unmatched.model.no.user,model_unmatched_model_no,base.group_user,1,1,1,1

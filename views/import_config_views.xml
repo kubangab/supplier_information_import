@@ -20,6 +20,28 @@
                                     <field name="source_column" readonly="1"/>
                                     <field name="destination_field_name" widget="selection"/>
                                     <field name="custom_label"/>
+                                    <field name="is_required"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Combination Rules">
+                            <field name="combination_rule_ids">
+                                <tree editable="bottom">
+                                    <field name="name"/>
+                                    <field name="field_1" domain="[('config_id', '=', parent.id)]"/>
+                                    <field name="value_1"/>
+                                    <field name="field_2" domain="[('config_id', '=', parent.id)]"/>
+                                    <field name="value_2"/>
+                                    <field name="product_id"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Unmatched Model Numbers">
+                            <field name="unmatched_model_ids">
+                                <tree editable="bottom">
+                                    <field name="model_no"/>
+                                    <field name="product_code"/>
+                                    <field name="product_id"/>
                                 </tree>
                             </field>
                         </page>
@@ -61,6 +83,26 @@
         </field>
     </record>
 
+    <record id="view_unmatched_model_no_tree" model="ir.ui.view">
+        <field name="name">unmatched.model.no.tree</field>
+        <field name="model">unmatched.model.no</field>
+        <field name="arch" type="xml">
+            <tree string="Unmatched Model Numbers" editable="bottom" delete="1" multi_edit="1">
+                <field name="config_id"/>
+                <field name="model_no"/>
+                <field name="product_code"/>
+                <field name="product_id"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="action_unmatched_model_no" model="ir.actions.act_window">
+        <field name="name">Unmatched Model Numbers</field>
+        <field name="res_model">unmatched.model.no</field>
+        <field name="view_mode">tree,form</field>
+        <field name="view_id" ref="view_unmatched_model_no_tree"/>
+    </record>
+    
     <record id="action_import_format_config" model="ir.actions.act_window">
         <field name="name">Import Format Configurations</field>
         <field name="res_model">import.format.config</field>

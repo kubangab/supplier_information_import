@@ -22,4 +22,16 @@
               parent="menu_product_info_import" 
               action="action_import_format_config" 
               sequence="30"/>
+
+    <menuitem id="menu_file_analysis_wizard"
+              name="Analyze Import File"
+              action="action_file_analysis_wizard"
+              parent="menu_product_info_import"
+              sequence="40"/>
+
+    <menuitem id="menu_unmatched_model_no"
+              name="Unmatched Model Numbers"
+              parent="menu_product_info_import"
+              action="action_unmatched_model_no"
+              sequence="50"/>
 </odoo>
