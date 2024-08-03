@@ -48,7 +48,7 @@ class FileAnalysisWizard(models.TransientModel):
     def action_analyze_file(self):
         self.ensure_one()
         if not self.file:
-            self.write({'state': 'warning', 'warning_message': _("Please upload a file.")})
+            self.write({'state': 'warning', 'warning_message': _("Please select a file.")})
             return self._reopen_view()
         if len(self.field_ids) != 2:
             self.write({'state': 'warning', 'warning_message': _("Please select exactly two fields for analysis.")})
@@ -56,33 +56,44 @@ class FileAnalysisWizard(models.TransientModel):
     
         file_content = base64.b64decode(self.file)
         
-        if self.file_type == 'csv':
-            data = self._process_csv(file_content)
-        elif self.file_type == 'excel':
-            data = self._process_excel(file_content)
-        else:
-            return {'warning': {'title': _("Error"), 'message': _("Unsupported file type.")}}
+        try:
+            if self.file_type == 'csv':
+                data = self._process_csv(file_content)
+            elif self.file_type == 'excel':
+                data = self._process_excel(file_content)
+            else:
+                return {'warning': {'title': _("Error"), 'message': _("Unsupported file format.")}}
+    
+            if not data:
+                raise UserError(_("No data found in the file."))
+    
+            _logger.info(f"Processed {len(data)} rows from the file")
+    
+            analysis_result, filtered_combinations = self._analyze_data(data)
 
-        analysis_result, filtered_combinations = self._analyze_data(data)
-        self.write({
-            'analysis_result': analysis_result,
-            'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False
-        })
-
-        return {
-            'name': _('File Analysis Result'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'file.analysis.wizard',
-            'view_mode': 'form',
-            'res_id': self.id,
-            'target': 'new',
-            'context': {'form_view_initial_mode': 'edit'},
-        }
-        self.write({
-            'analysis_result': analysis_result,
-            'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False,
-            'state': 'done'
-        })
+            _logger.info(f"Analysis result: {analysis_result}")
+            _logger.info(f"Filtered combinations: {filtered_combinations}")
+    
+            self.write({
+                'analysis_result': analysis_result,
+                'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False
+            })
+    
+            result = {
+                'name': _('File Analysis Result'),
+                'type': 'ir.actions.act_window',
+                'res_model': 'file.analysis.wizard',
+                'view_mode': 'form',
+                'res_id': self.id,
+                'target': 'new',
+                'context': {'form_view_initial_mode': 'edit'},
+            }
+            _logger.info(f"Returning view: {result}")
+            return result
+        
+        except Exception as e:
+            _logger.error(f"Error during file analysis: {str(e)}")
+            raise UserError(_(f"Error during file analysis: {str(e)}"))
 
     def _reopen_view(self):
         return {
@@ -124,12 +135,8 @@ class FileAnalysisWizard(models.TransientModel):
     
         combinations = {}
         for row in data:
-            val1 = row.get(field1.source_column, '')
-            val2 = row.get(field2.source_column, '')
-            
-            # Convert to string and strip whitespace
-            val1 = str(val1).strip() if val1 is not None else ''
-            val2 = str(val2).strip() if val2 is not None else ''
+            val1 = row.get(field1.source_column, '').strip()
+            val2 = row.get(field2.source_column, '').strip()
             
             # Skip rows where either field is empty
             if not val1 or not val2:
@@ -140,7 +147,7 @@ class FileAnalysisWizard(models.TransientModel):
     
         # Filter out combinations where field1 has only one unique match in field2
         filtered_combinations = {k: v for k, v in combinations.items() 
-                                 if len([c for c in combinations if c[0] == k[0]]) > 1}
+                                if len([c for c in combinations if c[0] == k[0]]) > 1}
     
         # Sort the filtered combinations by the first field (Model No.)
         sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
@@ -153,6 +160,10 @@ class FileAnalysisWizard(models.TransientModel):
             self.filtered_combinations = repr(dict(sorted_combinations))
         else:
             self.filtered_combinations = False
+        _logger.info(f"Set filtered_combinations to: {self.filtered_combinations}")
+    
+        _logger.info(f"Analysis result: {result}")
+        _logger.info(f"Filtered combinations: {filtered_combinations}")
 
         return "\n".join(result), dict(sorted_combinations)
 
