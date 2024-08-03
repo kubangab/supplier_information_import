@@ -59,11 +59,12 @@ class ImportColumnMapping(models.Model):
             counter += 1
         return unique_label
     
-    @api.model
-    def create(self, vals):
-        if not vals.get('custom_label'):
-            vals['custom_label'] = vals.get('source_column') or vals.get('custom_field_name') or _('Unnamed Column')
-        return super(ImportColumnMapping, self).create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('custom_label'):
+                vals['custom_label'] = vals.get('source_column') or vals.get('custom_field_name') or _('Unnamed Column')
+        return super(ImportColumnMapping, self).create(vals_list)
 
     def write(self, vals):
         if vals.get('destination_field_name') == 'custom':
