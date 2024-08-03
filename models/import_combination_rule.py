@@ -6,6 +6,7 @@ class ImportCombinationRule(models.Model):
     _description = 'Import Combination Rule'
 
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
+    supplier_id = fields.Many2one(related='config_id.supplier_id', store=True, readonly=True)
     name = fields.Char(string='Rule Name', required=True)
     field_1 = fields.Many2one('import.column.mapping', string='Field 1', domain="[('config_id', '=', config_id)]")
     field_2 = fields.Many2one('import.column.mapping', string='Field 2', domain="[('config_id', '=', config_id)]")

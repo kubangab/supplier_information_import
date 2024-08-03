@@ -52,12 +52,16 @@ class IncomingProductInfo(models.Model):
         if matching_rule:
             _logger.info(f"Found matching combination rule: {matching_rule.name}")
             if matching_rule.product_id:
-                _logger.info(f"Found product via combination rule: {matching_rule.product_id.name}")
-                return matching_rule.product_id
+                # Kontrollera om produkten har en leverantör som matchar config.supplier_id
+                if matching_rule.product_id.seller_ids.filtered(lambda s: s.partner_id == config.supplier_id):
+                    _logger.info(f"Found product via combination rule: {matching_rule.product_id.name} (ID: {matching_rule.product_id.id})")
+                    return matching_rule.product_id
+                else:
+                    _logger.warning(f"Matching rule found, but product {matching_rule.product_id.name} is not associated with supplier {config.supplier_id.name}")
             else:
                 _logger.warning(f"Matching rule found, but no product is set for the rule: {matching_rule.name}")
-        
-        _logger.warning(f"No matching combination rule found for values: {values}")
+    
+        _logger.warning(f"No matching combination rule or product found for values: {values}")
         return False
 
     @api.model

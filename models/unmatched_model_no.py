@@ -5,6 +5,7 @@ class UnmatchedModelNo(models.Model):
     _description = 'Unmatched Model Number'
 
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
+    supplier_id = fields.Many2one(related='config_id.supplier_id', string='Supplier', store=True, readonly=True)
     model_no = fields.Char(string='Model Number')
     pn = fields.Char(string='PN')
     product_code = fields.Char(string='Product Code')

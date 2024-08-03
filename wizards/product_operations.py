@@ -130,10 +130,25 @@ class ImportProductInfo(models.TransientModel):
                     values['supplier_product_code'] = combined_code
                     _logger.info(f"Row {index}: Applied combination rule. New supplier_product_code: {combined_code}")
     
-                # Search for existing product with the new method
                 product = IncomingProductInfo._search_product(values, config)
-                
-                if not product:
+                if product:
+                    values['product_id'] = product.id
+                    values['supplier_id'] = config.supplier_id.id
+    
+                    # Create or update IncomingProductInfo
+                    existing_info = IncomingProductInfo.search([
+                        ('supplier_id', '=', config.supplier_id.id),
+                        ('model_no', '=', values['model_no']),
+                        ('sn', '=', values['sn'])
+                    ], limit=1)
+    
+                    if existing_info:
+                        _logger.info(f"Row {index}: Updating existing IncomingProductInfo {existing_info.id}")
+                        existing_info.write(values)
+                    else:
+                        _logger.info(f"Row {index}: Creating new IncomingProductInfo")
+                        IncomingProductInfo.create(values)
+                else:
                     _logger.warning(f"Row {index}: No matching product found for values: {values}. Adding to unmatched models.")
                     unmatched_key = tuple(values.get(field.destination_field_name) for field in config.column_mapping if field.is_required)
                     if unmatched_key not in unmatched_models:
@@ -143,25 +158,6 @@ class ImportProductInfo(models.TransientModel):
                             **{field.destination_field_name: values.get(field.destination_field_name) 
                                 for field in config.column_mapping if field.is_required}
                         })
-                    continue
-                
-                # If a product was found, continue with the rest of the process
-                values['product_id'] = product.id
-                values['supplier_id'] = config.supplier_id.id
-    
-                # Create or update IncomingProductInfo
-                existing_info = IncomingProductInfo.search([
-                    ('supplier_id', '=', config.supplier_id.id),
-                    ('model_no', '=', values['model_no']),
-                    ('sn', '=', values['sn'])
-                ], limit=1)
-    
-                if existing_info:
-                    _logger.info(f"Row {index}: Updating existing IncomingProductInfo {existing_info.id}")
-                    existing_info.write(values)
-                else:
-                    _logger.info(f"Row {index}: Creating new IncomingProductInfo")
-                    IncomingProductInfo.create(values)
     
             except Exception as e:
                 _logger.error(f"Error processing row {index}: {str(e)}")

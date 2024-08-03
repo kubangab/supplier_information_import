@@ -32,7 +32,7 @@
                                     <field name="value_1"/>
                                     <field name="field_2" domain="[('config_id', '=', parent.id)]"/>
                                     <field name="value_2"/>
-                                    <field name="product_id"/>
+                                    <field name="product_id" domain="[('seller_ids.partner_id', '=', parent.supplier_id)]"/>
                                 </tree>
                             </field>
                         </page>
@@ -41,7 +41,7 @@
                                 <tree editable="bottom">
                                     <field name="model_no"/>
                                     <field name="product_code"/>
-                                    <field name="product_id"/>
+                                    <field name="product_id" domain="[('seller_ids.partner_id', '=', parent.supplier_id)]"/>
                                 </tree>
                             </field>
                         </page>
@@ -59,12 +59,13 @@
                 <sheet>
                     <group>
                         <field name="config_id"/>
+                        <field name="supplier_id" invisible="1"/>
                         <field name="name"/>
                         <field name="field_1" domain="[('config_id', '=', config_id)]"/>
                         <field name="value_1"/>
                         <field name="field_2" domain="[('config_id', '=', config_id)]"/>
                         <field name="value_2"/>
-                        <field name="product_id"/>
+                        <field name="product_id" domain="[('seller_ids.partner_id', '=', supplier_id)]"/>
                     </group>
                 </sheet>
             </form>
@@ -89,10 +90,11 @@
         <field name="arch" type="xml">
             <tree string="Unmatched Model Numbers" editable="bottom" delete="1" multi_edit="1">
                 <field name="config_id"/>
+                <field name="supplier_id" invisible="1"/>
                 <field name="model_no"/>
                 <field name="pn"/>
                 <field name="product_code"/>
-                <field name="product_id"/>
+                <field name="product_id" domain="[('seller_ids.partner_id', '=', supplier_id)]"/>
             </tree>
         </field>
     </record>
