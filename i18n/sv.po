@@ -4,10 +4,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 16.0+e-20240701\n"
+"Project-Id-Version: Odoo Server 16.0+e-20240731\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-07-27 21:08+0000\n"
-"PO-Revision-Date: 2024-07-27 23:14+0200\n"
+"POT-Creation-Date: 2024-08-03 15:23+0000\n"
+"PO-Revision-Date: 2024-08-03 17:25+0200\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: sv_SE\n"
@@ -98,10 +98,30 @@ msgstr "Lösenord för administratör"
 
 #. module: supplier_information_import
 #. odoo-python
-#: code:addons/supplier_information_import/models/import_config.py:0
+#: code:addons/supplier_information_import/models/import_format_config.py:0
 #, python-format
 msgid "All column mappings must have a destination field."
 msgstr "Alla kolumnmappningar måste ha ett destinationsfält."
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__analysis_result
+msgid "Analysis Result"
+msgstr "Analys Resultat"
+
+#. module: supplier_information_import
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_file_analysis_wizard_form
+msgid "Analyze"
+msgstr "Analysera"
+
+#. module: supplier_information_import
+#: model:ir.ui.menu,name:supplier_information_import.menu_file_analysis_wizard
+msgid "Analyze Import File"
+msgstr "Analysera importfil"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__app_eui
+msgid "AppEUI"
+msgstr "AppEUI"
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__app_key
@@ -119,6 +139,11 @@ msgid "Automatic"
 msgstr "Automatiskt"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__field_names
+msgid "Available Fields"
+msgstr "Tillgängliga fält"
+
+#. module: supplier_information_import
 #: model:ir.model.fields.selection,name:supplier_information_import.selection__import_format_config__file_type__csv
 msgid "CSV"
 msgstr "CSV"
@@ -130,10 +155,33 @@ msgid "Cancel"
 msgstr "Avbryt"
 
 #. module: supplier_information_import
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_file_analysis_wizard_form
+msgid "Close"
+msgstr "Stäng"
+
+#. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__column_mapping
 #: model_terms:ir.ui.view,arch_db:supplier_information_import.view_import_format_config_form
 msgid "Column Mappings"
 msgstr "Mappning av kolumner"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__combination_pattern
+msgid "Combination Pattern"
+msgstr "Kombinationsmönster"
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/models/import_combination_rule.py:0
+#, python-format
+msgid "Combination Pattern must contain both {0} and {1}"
+msgstr "Kombinationsmönstret måste innehålla både {0} och {1}"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__combination_rule_ids
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_import_format_config_form
+msgid "Combination Rules"
+msgstr "Kombinationsregler"
 
 #. module: supplier_information_import
 #. odoo-python
@@ -148,22 +196,38 @@ msgid "Configuration Name"
 msgstr "Konfigurationsnamn"
 
 #. module: supplier_information_import
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_file_analysis_wizard_form
+msgid "Create Combination Rules"
+msgstr "Skapa kombinationsregler"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__create_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__create_uid
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__create_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__create_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__create_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__create_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard__create_uid
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__create_uid
 msgid "Created by"
 msgstr "Skapat av"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__create_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__create_date
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__create_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__create_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__create_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__create_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard__create_date
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__create_date
 msgid "Created on"
 msgstr "Skapad den"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__custom_field_name
+msgid "Custom Field Name"
+msgstr "Anpassat fältnamn"
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__custom_label
@@ -172,10 +236,17 @@ msgstr "Anpassad Etikett"
 
 #. module: supplier_information_import
 #. odoo-python
-#: code:addons/supplier_information_import/models/import_config.py:0
+#: code:addons/supplier_information_import/models/import_format_config.py:0
 #, python-format
 msgid "Custom fields must have a label."
 msgstr "Anpassade fält måste ha en etikett."
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/models/import_column_mapping.py:0
+#, python-format
+msgid "Custom label must be unique per configuration for non-custom fields."
+msgstr "Den anpassade etiketten måste vara unik per konfiguration för fält som inte är anpassade."
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__dev_eui
@@ -188,27 +259,34 @@ msgid "Destination Field Name"
 msgstr "Destination Fältnamn"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__display_name
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__display_name
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__display_name
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__display_name
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__display_name
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__display_name
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard__display_name
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__display_name
 msgid "Display Name"
 msgstr "Visningsnamn"
 
 #. module: supplier_information_import
-#. odoo-python
-#: code:addons/supplier_information_import/wizards/product_operations.py:0
-#, python-format
-msgid "Error processing CSV file: %s"
-msgstr "Fel vid bearbetning av CSV-fil: %s"
+#: model:ir.model.fields.selection,name:supplier_information_import.selection__file_analysis_wizard__state__done
+msgid "Done"
+msgstr "Klar"
+
+#. module: supplier_information_import
+#: model:ir.model.fields.selection,name:supplier_information_import.selection__file_analysis_wizard__state__draft
+msgid "Draft"
+msgstr "Utkast"
 
 #. module: supplier_information_import
 #. odoo-python
-#: code:addons/supplier_information_import/wizards/product_operations.py:0
+#: code:addons/supplier_information_import/models/import_format_config.py:0
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
 #, python-format
-msgid "Error processing Excel file: %s"
-msgstr "Fel vid bearbetning av Excel-fil: %s"
+msgid "Error"
+msgstr "Fel"
 
 #. module: supplier_information_import
 #: model:ir.model.fields.selection,name:supplier_information_import.selection__import_format_config__file_type__excel
@@ -216,26 +294,77 @@ msgid "Excel"
 msgstr "Excel"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__field_1
+msgid "Field 1"
+msgstr "Fält 1"
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/models/import_combination_rule.py:0
+#, python-format
+msgid "Field 1 and Field 2 must be different"
+msgstr "Fält 1 och fält 2 måste vara olika"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__field_2
+msgid "Field 2"
+msgstr "Fält 2"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__field_ids
+msgid "Fields to Analyze"
+msgstr "Fält att analysera"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__file
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__file
 msgid "File"
 msgstr "Fil"
 
 #. module: supplier_information_import
+#: model:ir.actions.act_window,name:supplier_information_import.action_file_analysis_wizard
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_file_analysis_wizard_form
+msgid "File Analysis"
+msgstr "Filanalys"
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
+#, python-format
+msgid "File Analysis Result"
+msgstr "Filanalysresultat"
+
+#. module: supplier_information_import
+#: model:ir.model,name:supplier_information_import.model_file_analysis_wizard
+msgid "File Analysis Wizard"
+msgstr "Guiden för filanalys"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__file_name
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__file_name
 msgid "File Name"
 msgstr "Filnamn"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__file_type
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__file_type
 msgid "File Type"
 msgstr "Filtyp"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__filtered_combinations
+msgid "Filtered Combinations"
+msgstr "Filtrerade kombinationer"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__id
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__id
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__id
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__id
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__id
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__id
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard__id
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__id
 msgid "ID"
 msgstr "ID"
 
@@ -255,8 +384,16 @@ msgid "Import Column Mapping"
 msgstr "Mappning av importkolumner"
 
 #. module: supplier_information_import
+#: model:ir.model,name:supplier_information_import.model_import_combination_rule
+msgid "Import Combination Rule"
+msgstr "Import Kombinationsregel"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__import_config_id
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__config_id
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__config_id
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__import_config_id
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__config_id
 msgid "Import Configuration"
 msgstr "Importera konfiguration"
 
@@ -323,29 +460,48 @@ msgid "Incoming Products"
 msgstr "Inkommande produkter"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__is_custom_field
+msgid "Is Custom Field"
+msgstr "Är anpassat fält"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__is_required
+msgid "Is Required"
+msgstr "Obligatorisk"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard____last_update
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping____last_update
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule____last_update
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config____last_update
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info____last_update
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info____last_update
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard____last_update
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no____last_update
 msgid "Last Modified on"
 msgstr "Senaste ändrad den"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__write_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__write_uid
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__write_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__write_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__write_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__write_uid
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard__write_uid
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__write_uid
 msgid "Last Updated by"
 msgstr "Senast uppdatera av"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__write_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__write_date
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__write_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__write_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_product_info__write_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__write_date
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard__write_date
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__write_date
 msgid "Last Updated on"
 msgstr "Senast uppdaterad den"
 
@@ -380,9 +536,21 @@ msgid "Model No."
 msgstr "Modell nr."
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__model_no
+msgid "Model Number"
+msgstr "Modellnummer"
+
+#. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__name
 msgid "Name"
 msgstr "Namn"
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/wizards/product_operations.py:0
+#, python-format
+msgid "No data found in the file."
+msgstr "Inga data hittades i filen."
 
 #. module: supplier_information_import
 #. odoo-python
@@ -393,6 +561,7 @@ msgstr "Inga pågående produkter hittades som matchar överföringslinjerna."
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__pn
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__pn
 msgid "PN"
 msgstr "PN"
 
@@ -416,10 +585,45 @@ msgid "Please select an import configuration."
 msgstr "Vänligen välj en importkonfiguration."
 
 #. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
+#, python-format
+msgid "Please select exactly two fields for analysis."
+msgstr "Vänligen välj exakt två fält för analys."
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
+#, python-format
+msgid "Please upload a file."
+msgstr "Vänligen ladda upp en fil."
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/models/import_format_config.py:0
+#, python-format
+msgid "Please upload a sample file first."
+msgstr "Vänligen ladda upp en exempelfil först."
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__previous_mappings
+msgid "Previous Mappings"
+msgstr "Tidigare avbildningar"
+
+#. module: supplier_information_import
 #: model:ir.model,name:supplier_information_import.model_product_template
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__product_id
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__product_id
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__product_id
 msgid "Product"
 msgstr "Produkt"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__product_code
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__product_code
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__product_code
+msgid "Product Code"
+msgstr "Produktkod"
 
 #. module: supplier_information_import
 #: model:mail.template,name:supplier_information_import.email_template_product_info_delivery
@@ -473,19 +677,24 @@ msgid "Received"
 msgstr "Mottagen"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__regex_pattern
+msgid "Regex Pattern"
+msgstr "Regex-mönster"
+
+#. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__stock_picking_id
 msgid "Related Stock Picking"
 msgstr "Relaterat Stock Picking"
 
 #. module: supplier_information_import
-#: model:ir.model.fields,field_description:supplier_information_import.field_import_column_mapping__is_required
-msgid "Required"
-msgstr "Obligatorisk"
-
-#. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__root_password
 msgid "Root Password"
 msgstr "Lösenord för rot"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__name
+msgid "Rule Name"
+msgstr "Regelnamn"
 
 #. module: supplier_information_import
 #: model:ir.model,name:supplier_information_import.model_sale_order
@@ -524,13 +733,20 @@ msgid "Source Column Name"
 msgstr "Källa Kolumnnamn"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__state
+msgid "State"
+msgstr "Län"
+
+#. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__state
 msgid "Status"
 msgstr "Status"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__supplier_id
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__supplier_id
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__supplier_id
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__supplier_id
 msgid "Supplier"
 msgstr "Leverantör"
 
@@ -564,11 +780,61 @@ msgid "Transfer"
 msgstr "Flytt"
 
 #. module: supplier_information_import
+#: model:ir.model,name:supplier_information_import.model_unmatched_model_no
+msgid "Unmatched Model Number"
+msgstr "Oöverträffat modellnummer"
+
+#. module: supplier_information_import
+#: model:ir.actions.act_window,name:supplier_information_import.action_unmatched_model_no
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_format_config__unmatched_model_ids
+#: model:ir.ui.menu,name:supplier_information_import.menu_unmatched_model_no
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_import_format_config_form
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_unmatched_model_no_tree
+msgid "Unmatched Model Numbers"
+msgstr "Oöverträffade modellnummer"
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/models/import_column_mapping.py:0
+#: code:addons/supplier_information_import/models/import_format_config.py:0
+#, python-format
+msgid "Unnamed Column"
+msgstr "Namnlös kolumn"
+
+#. module: supplier_information_import
 #. odoo-python
 #: code:addons/supplier_information_import/wizards/product_operations.py:0
 #, python-format
 msgid "Unsupported file format. Please use CSV or Excel files."
 msgstr "Filformat som inte stöds. Vänligen använd CSV- eller Excel-filer."
+
+#. module: supplier_information_import
+#. odoo-python
+#: code:addons/supplier_information_import/models/import_format_config.py:0
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
+#, python-format
+msgid "Unsupported file type."
+msgstr "Filtypen stöds inte."
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__value_1
+msgid "Value 1"
+msgstr "Värde 1"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__value_2
+msgid "Value 2"
+msgstr "Värde 2"
+
+#. module: supplier_information_import
+#: model:ir.model.fields.selection,name:supplier_information_import.selection__file_analysis_wizard__state__warning
+msgid "Warning"
+msgstr "Varning"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_file_analysis_wizard__warning_message
+msgid "Warning Message"
+msgstr "Varningsmeddelande"
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__wifi_password
