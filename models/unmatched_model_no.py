@@ -1,5 +1,3 @@
-# models/unmatched_model_no.py
-
 from odoo import models, fields, api
 
 class UnmatchedModelNo(models.Model):
@@ -8,6 +6,7 @@ class UnmatchedModelNo(models.Model):
 
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
     model_no = fields.Char(string='Model Number')
+    pn = fields.Char(string='PN')
     product_code = fields.Char(string='Product Code')
     product_id = fields.Many2one('product.product', string='Product')
 

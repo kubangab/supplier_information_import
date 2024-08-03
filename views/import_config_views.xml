@@ -90,6 +90,7 @@
             <tree string="Unmatched Model Numbers" editable="bottom" delete="1" multi_edit="1">
                 <field name="config_id"/>
                 <field name="model_no"/>
+                <field name="pn"/>
                 <field name="product_code"/>
                 <field name="product_id"/>
             </tree>
@@ -102,7 +103,7 @@
         <field name="view_mode">tree,form</field>
         <field name="view_id" ref="view_unmatched_model_no_tree"/>
     </record>
-    
+
     <record id="action_import_format_config" model="ir.actions.act_window">
         <field name="name">Import Format Configurations</field>
         <field name="res_model">import.format.config</field>

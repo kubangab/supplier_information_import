@@ -2,11 +2,12 @@ import base64
 import csv
 import io
 import xlrd
-import logging
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+import logging
 
 _logger = logging.getLogger(__name__)
+
 
 class ImportProductInfo(models.TransientModel):
     _name = 'import.product.info'
@@ -19,11 +20,11 @@ class ImportProductInfo(models.TransientModel):
     def import_file(self):
         if not self.file:
             raise UserError(_('Please select a file to import.'))
-
+    
         config = self.import_config_id
         if not config:
             raise UserError(_('Please select an import configuration.'))
-
+    
         file_content = base64.b64decode(self.file)
         
         try:
@@ -33,22 +34,14 @@ class ImportProductInfo(models.TransientModel):
                 data = self.process_excel(file_content)
             else:
                 raise UserError(_('Unsupported file format. Please use CSV or Excel files.'))
-
+    
             if not data:
                 raise UserError(_('No data found in the file.'))
-
+    
             _logger.info(f"Processed {len(data)} rows from the file")
-
+    
             unmatched_models = self.process_rows(data, config)
-
-            # Create unmatched model records
-            UnmatchedModelNo = self.env['unmatched.model.no']
-            for model_no in unmatched_models:
-                UnmatchedModelNo.create({
-                    'config_id': config.id,
-                    'model_no': model_no,
-                })
-
+    
             return {'type': 'ir.actions.act_window_close'}
         except Exception as e:
             _logger.error(f"Error during file import: {str(e)}")
@@ -89,44 +82,38 @@ class ImportProductInfo(models.TransientModel):
 
     def process_rows(self, data, config):
         IncomingProductInfo = self.env['incoming.product.info']
-        SupplierInfo = self.env['product.supplierinfo']
-        Product = self.env['product.product']
-        ProductTemplate = self.env['product.template']
         UnmatchedModelNo = self.env['unmatched.model.no']
-    
+        
         _logger.info(f"Starting to process {len(data)} rows")
         _logger.info(f"Config supplier_id: {config.supplier_id.id}")
         _logger.info(f"Column mapping: {[(m.source_column, m.destination_field_name) for m in config.column_mapping]}")
-        
+    
         supplier = self.env['res.partner'].browse(config.supplier_id.id)
         _logger.info(f"Supplier {supplier.name} (ID: {supplier.id}) has supplier_rank: {supplier.supplier_rank}")
-        
+    
         if supplier.supplier_rank == 0:
             supplier.write({'supplier_rank': 1})
             _logger.info(f"Updated supplier_rank for {supplier.name} to 1")
     
-        unmatched_models = set()  # Use a set to store unique model numbers
+        unmatched_models = set()
         failed_rows = []
     
         for index, row in enumerate(data, start=1):
             try:
                 _logger.info(f"Processing row {index}: {row}")
-                
-                values = {}
-                missing_required_fields = []
     
+                values = {}
                 for mapping in config.column_mapping:
                     source_value = row.get(mapping.source_column, '').strip()
                     _logger.debug(f"Mapping {mapping.source_column} to {mapping.destination_field_name}: '{source_value}'")
                     if mapping.destination_field_name:
                         if mapping.is_required and not source_value:
-                            missing_required_fields.append(mapping.custom_label or mapping.destination_field_name)
+                            _logger.warning(f"Row {index}: Missing required field: {mapping.custom_label or mapping.destination_field_name}")
+                            continue
                         if source_value:
                             values[mapping.destination_field_name] = source_value
     
-                if missing_required_fields:
-                    _logger.warning(f"Row {index}: Missing required fields: {', '.join(missing_required_fields)}")
-                    continue
+                _logger.info(f"Row {index}: Processed values: {values}")
     
                 if 'model_no' not in values:
                     _logger.warning(f"Row {index}: Missing Model No.")
@@ -136,43 +123,33 @@ class ImportProductInfo(models.TransientModel):
                     _logger.warning(f"Row {index}: Missing Serial Number")
                     continue
     
-                _logger.info(f"Row {index}: Processed values: {values}")
-    
-                # Apply combination rules
                 combined_code = IncomingProductInfo._get_combined_code(values, config)
+                _logger.info(f"Row {index}: Combined code result: {combined_code}")
+    
                 if combined_code:
                     values['supplier_product_code'] = combined_code
                     _logger.info(f"Row {index}: Applied combination rule. New supplier_product_code: {combined_code}")
-                else:
-                    _logger.info(f"Row {index}: No combination rule applied. Using original supplier_product_code.")
     
-                # Ensure we have a supplier_product_code
-                if 'supplier_product_code' not in values:
-                    values['supplier_product_code'] = values.get('model_no', '')
-                    _logger.info(f"Row {index}: No supplier_product_code found. Using model_no as fallback.")
-    
-                # Search for existing supplier info
-                supplier_info = SupplierInfo.search([
-                    ('partner_id', '=', config.supplier_id.id),
-                    ('product_code', '=', values['supplier_product_code'])
-                ], limit=1)
-    
-                if supplier_info:
-                    _logger.info(f"Row {index}: Found existing SupplierInfo for product_code={values['supplier_product_code']}")
-                    product = supplier_info.product_id
-                else:
-                    _logger.info(f"Row {index}: No matching product found for supplier_product_code={values['supplier_product_code']}")
-                    product = Product.search([('default_code', '=', values['supplier_product_code'])], limit=1)
-                    if product:
-                        _logger.info(f"Row {index}: Found product by default_code={values['supplier_product_code']}")
-                    else:
-                        _logger.info(f"Row {index}: No product found. Adding to unmatched models.")
-                        unmatched_models.add(values['model_no'])
-                        continue  # Skip to next row without creating IncomingProductInfo
+                # Search for existing product with the new method
+                product = IncomingProductInfo._search_product(values, config)
                 
-                values['supplier_id'] = config.supplier_id.id
+                if not product:
+                    _logger.warning(f"Row {index}: No matching product found for values: {values}. Adding to unmatched models.")
+                    unmatched_key = tuple(values.get(field.destination_field_name) for field in config.column_mapping if field.is_required)
+                    if unmatched_key not in unmatched_models:
+                        unmatched_models.add(unmatched_key)
+                        UnmatchedModelNo.create({
+                            'config_id': config.id,
+                            **{field.destination_field_name: values.get(field.destination_field_name) 
+                                for field in config.column_mapping if field.is_required}
+                        })
+                    continue
+                
+                # If a product was found, continue with the rest of the process
                 values['product_id'] = product.id
+                values['supplier_id'] = config.supplier_id.id
     
+                # Create or update IncomingProductInfo
                 existing_info = IncomingProductInfo.search([
                     ('supplier_id', '=', config.supplier_id.id),
                     ('model_no', '=', values['model_no']),
@@ -191,17 +168,9 @@ class ImportProductInfo(models.TransientModel):
                 failed_rows.append((index, row, str(e)))
                 continue
     
-        # Create unmatched model records
-        for model_no in unmatched_models:
-            UnmatchedModelNo.create({
-                'config_id': config.id,
-                'model_no': model_no,
-            })
-    
-        self.env.cr.commit()
         _logger.info("Finished processing all rows")
         
         if failed_rows:
             _logger.warning(f"Failed to process {len(failed_rows)} rows")
     
-        return list(unmatched_models)  # Convert set back to list before returning
+        return list(unmatched_models)

@@ -6,7 +6,7 @@ import xlsxwriter
 
 class SaleOrder(models.Model):
     _name = 'sale.order'
-    _inherit = ['sale.order', 'product.info.report.mixin']
+    _inherit = ['sale.order','product.info.report.mixin']
 
     def generate_excel_report(self):
         output = BytesIO()
