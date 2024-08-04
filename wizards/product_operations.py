@@ -90,6 +90,9 @@ class ImportProductInfo(models.TransientModel):
         combined_code = self.env['incoming.product.info']._get_combined_code(values, config)
         if combined_code:
             values['supplier_product_code'] = combined_code
+        elif 'model_no' in values:
+            # Use model_no as supplier_product_code if no combined code is generated
+            values['supplier_product_code'] = values['model_no']
         
         return values
 
@@ -99,71 +102,76 @@ class ImportProductInfo(models.TransientModel):
         
         _logger.info(f"Starting to process {len(data)} rows")
         _logger.info(f"Config supplier_id: {config.supplier_id.id}")
-        _logger.info(f"Column mapping: {[(m.source_column, m.destination_field_name) for m in config.column_mapping]}")
-    
-        supplier = self.env['res.partner'].browse(config.supplier_id.id)
-        _logger.info(f"Supplier {supplier.name} (ID: {supplier.id}) has supplier_rank: {supplier.supplier_rank}")
-    
-        if supplier.supplier_rank == 0:
-            supplier.write({'supplier_rank': 1})
-            _logger.info(f"Updated supplier_rank for {supplier.name} to 1")
-    
+        
         unmatched_models = {}
         failed_rows = []
     
         for index, row in enumerate(data, start=1):
             try:
-                _logger.info(f"Processing row {index}: {row}")
-    
-                values = self._process_row_values(row, config)
-                _logger.info(f"Row {index}: Processed values: {values}")
-    
-                if 'model_no' not in values or 'sn' not in values:
-                    _logger.warning(f"Row {index}: Missing Model No. or Serial Number. Skipping.")
-                    continue
-    
-                product = IncomingProductInfo._search_product(values, config)
-                if product:
-                    values['product_id'] = product.id
-                    values['supplier_id'] = config.supplier_id.id
-    
-                    existing_info = IncomingProductInfo.search([
-                        ('supplier_id', '=', config.supplier_id.id),
-                        ('model_no', '=', values['model_no']),
-                        ('sn', '=', values['sn'])
-                    ], limit=1)
-    
-                    if existing_info:
-                        _logger.info(f"Row {index}: Updating existing IncomingProductInfo {existing_info.id}")
-                        existing_info.write(values)
+                with self.env.cr.savepoint():
+                    _logger.info(f"Processing row {index}: {row}")
+            
+                    values = self._process_row_values(row, config)
+                    _logger.info(f"Row {index}: Processed values: {values}")
+            
+                    if 'model_no' not in values or 'sn' not in values:
+                        _logger.warning(f"Row {index}: Missing Model No. or Serial Number. Skipping.")
+                        continue
+            
+                    product = IncomingProductInfo._search_product(values, config)
+                    if product:
+                        values['product_id'] = product.id
+                        values['supplier_id'] = config.supplier_id.id
+                        if 'supplier_product_code' not in values:
+                            values['supplier_product_code'] = values.get('model_no', '')  # Fallback to model_no if available
+                    
+                        existing_info = IncomingProductInfo.search([
+                            ('supplier_id', '=', config.supplier_id.id),
+                            ('model_no', '=', values['model_no']),
+                            ('sn', '=', values['sn'])
+                        ], limit=1)
+                    
+                        if existing_info:
+                            _logger.info(f"Row {index}: Updating existing IncomingProductInfo {existing_info.id}")
+                            existing_info.write(values)
+                        else:
+                            _logger.info(f"Row {index}: Creating new IncomingProductInfo")
+                            IncomingProductInfo.create(values)
                     else:
-                        _logger.info(f"Row {index}: Creating new IncomingProductInfo")
-                        IncomingProductInfo.create(values)
-                else:
-                    _logger.warning(f"Row {index}: No matching product found for values: {values}. Adding to unmatched models.")
-                    model_no = values.get('model_no')
-                    if model_no not in unmatched_models:
-                        unmatched_models[model_no] = {
-                            'config_id': config.id,
-                            'supplier_id': config.supplier_id.id,  # Add this line
-                            'model_no': model_no,
-                            'pn': values.get('pn'),
-                            'product_code': values.get('supplier_product_code') or values.get('product_code'),
-                            'supplier_product_code': values.get('supplier_product_code'),
-                            'raw_data': str(values),
-                            'count': 1
-                        }
-                    else:
-                        unmatched_models[model_no]['count'] += 1
+                        _logger.warning(f"Row {index}: No matching product found for values: {values}. Adding to unmatched models.")
+                        model_no = values.get('model_no')
+                        if model_no not in unmatched_models:
+                            unmatched_models[model_no] = {
+                                'config_id': config.id,
+                                'supplier_id': config.supplier_id.id,
+                                'model_no': model_no,
+                                'pn': values.get('pn'),
+                                'product_code': values.get('supplier_product_code') or values.get('product_code') or model_no,
+                                'supplier_product_code': values.get('supplier_product_code') or model_no,
+                                'raw_data': str(values),
+                                'count': 1
+                            }
+                        else:
+                            unmatched_models[model_no]['count'] += 1
     
             except Exception as e:
                 _logger.error(f"Error processing row {index}: {str(e)}")
                 failed_rows.append((index, row, str(e)))
                 continue
     
-        # Create UnmatchedModelNo records
-        for model_data in unmatched_models.values():
-            UnmatchedModelNo.create(model_data)
+        # Create or update UnmatchedModelNo records
+        for model_no, model_data in unmatched_models.items():
+            existing_unmatched = UnmatchedModelNo.search([
+                ('config_id', '=', config.id),
+                ('model_no', '=', model_no)
+            ], limit=1)
+            if existing_unmatched:
+                existing_unmatched.write({
+                    'count': existing_unmatched.count + model_data['count'],
+                    'raw_data': model_data['raw_data']  # Update with latest data
+                })
+            else:
+                UnmatchedModelNo.create(model_data)
     
         _logger.info("Finished processing all rows")
         

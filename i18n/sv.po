@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 16.0+e-20240731\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-08-03 15:23+0000\n"
-"PO-Revision-Date: 2024-08-03 17:25+0200\n"
+"POT-Creation-Date: 2024-08-04 11:59+0000\n"
+"PO-Revision-Date: 2024-08-04 14:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: sv_SE\n"
@@ -21,29 +21,43 @@ msgstr ""
 #: model:mail.template,body_html:supplier_information_import.email_template_product_info_delivery
 msgid ""
 "<div style=\"margin: 0px; padding: 0px;\">\n"
-"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
-"                        Dear <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>),\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;"
+"\">\n"
+"                        Dear <t t-out=\"object.partner_id.name or "
+"''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or "
+"''\">Azure Interior</t>),\n"
 "                        <br><br>\n"
-"                        Please find attached the product information for your delivery <span style=\"font-weight:bold;\"><t t-out=\"object.name or ''\">WH/OUT/00001</t></span>.\n"
+"                        Please find attached the product information for "
+"your delivery <span style=\"font-weight:bold;\"><t t-out=\"object.name or "
+"''\">WH/OUT/00001</t></span>.\n"
 "                        <br><br>\n"
-"                        If you have any questions, please don't hesitate to contact us.\n"
+"                        If you have any questions, please don't hesitate to "
+"contact us.\n"
 "                        <br><br>\n"
 "                        Best regards,<br>\n"
-"                        <t t-out=\"object.user_id.signature or object.company_id.name or ''\">--<br>Mitchell Admin</t>\n"
+"                        <t t-out=\"object.user_id.signature or object."
+"company_id.name or ''\">--<br>Mitchell Admin</t>\n"
 "                    </p>\n"
 "                </div>\n"
 "            "
 msgstr ""
 "<div style=\"margin: 0px; padding: 0px;\">\n"
-"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
-"                        Hej <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior)</t>!\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;"
+"\">\n"
+"                        Hej <t t-out=\"object.partner_id.name or "
+"''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or "
+"''\">Azure Interior)</t>!\n"
 "                       <br><br>\n"
-"                        Vänligen bifoga produktinformationen för din leverans <span style=\"font-weight:bold;\"><t t-out=\"object.name or ''\">WH/OUT/00001</t></span>.\n"
+"                        Vänligen bifoga produktinformationen för din "
+"leverans <span style=\"font-weight:bold;\"><t t-out=\"object.name or "
+"''\">WH/OUT/00001</t></span>.\n"
 "                       <br><br>\n"
-"                        Om du har några frågor, tveka inte att kontakta oss.\n"
+"                        Om du har några frågor, tveka inte att kontakta "
+"oss.\n"
 "                       <br><br>\n"
 "                        Med vänliga hälsningar<br>\n"
-"                       <t t-out=\"object.user_id.signature or object.company_id.name or ''\">--<br>Mitchell Admin</t>\n"
+"                       <t t-out=\"object.user_id.signature or object."
+"company_id.name or ''\">--<br>Mitchell Admin</t>\n"
 "                    </p>\n"
 "                </div>\n"
 "            "
@@ -52,29 +66,43 @@ msgstr ""
 #: model:mail.template,body_html:supplier_information_import.email_template_product_info_sale_order
 msgid ""
 "<div style=\"margin: 0px; padding: 0px;\">\n"
-"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
-"                        Dear <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>),\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;"
+"\">\n"
+"                        Dear <t t-out=\"object.partner_id.name or "
+"''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or "
+"''\">Azure Interior</t>),\n"
 "                        <br><br>\n"
-"                        Please find attached the product information for your order <span style=\"font-weight:bold;\"><t t-out=\"object.name or ''\">S00001</t></span>.\n"
+"                        Please find attached the product information for "
+"your order <span style=\"font-weight:bold;\"><t t-out=\"object.name or "
+"''\">S00001</t></span>.\n"
 "                        <br><br>\n"
-"                        If you have any questions, please don't hesitate to contact us.\n"
+"                        If you have any questions, please don't hesitate to "
+"contact us.\n"
 "                        <br><br>\n"
 "                        Best regards,<br>\n"
-"                        <t t-out=\"object.user_id.signature or object.company_id.name or ''\">--<br>Mitchell Admin</t>\n"
+"                        <t t-out=\"object.user_id.signature or object."
+"company_id.name or ''\">--<br>Mitchell Admin</t>\n"
 "                    </p>\n"
 "                </div>\n"
 "            "
 msgstr ""
 "<div style=\"margin: 0px; padding: 0px;\">\n"
-"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
-"                        Hej <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior)</t>!\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;"
+"\">\n"
+"                        Hej <t t-out=\"object.partner_id.name or "
+"''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or "
+"''\">Azure Interior)</t>!\n"
 "                       <br><br>\n"
-"                        Vänligen se bifogad produktinformation för din beställning <span style=\"font-weight:bold;\"><t t-out=\"object.name or ''\">S00001</t></span>.\n"
+"                        Vänligen se bifogad produktinformation för din "
+"beställning <span style=\"font-weight:bold;\"><t t-out=\"object.name or "
+"''\">S00001</t></span>.\n"
 "                       <br><br>\n"
-"                        Om du har några frågor, tveka inte att kontakta oss.\n"
+"                        Om du har några frågor, tveka inte att kontakta "
+"oss.\n"
 "                       <br><br>\n"
 "                        Med vänliga hälsningar<br>\n"
-"                       <t t-out=\"object.user_id.signature or object.company_id.name or ''\">--<br>Mitchell Admin</t>\n"
+"                       <t t-out=\"object.user_id.signature or object."
+"company_id.name or ''\">--<br>Mitchell Admin</t>\n"
 "                    </p>\n"
 "                </div>\n"
 "            "
@@ -196,6 +224,11 @@ msgid "Configuration Name"
 msgstr "Konfigurationsnamn"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__count
+msgid "Count"
+msgstr "Antal"
+
+#. module: supplier_information_import
 #: model_terms:ir.ui.view,arch_db:supplier_information_import.view_file_analysis_wizard_form
 msgid "Create Combination Rules"
 msgstr "Skapa kombinationsregler"
@@ -246,7 +279,9 @@ msgstr "Anpassade fält måste ha en etikett."
 #: code:addons/supplier_information_import/models/import_column_mapping.py:0
 #, python-format
 msgid "Custom label must be unique per configuration for non-custom fields."
-msgstr "Den anpassade etiketten måste vara unik per konfiguration för fält som inte är anpassade."
+msgstr ""
+"Den anpassade etiketten måste vara unik per konfiguration för fält som inte "
+"är anpassade."
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__dev_eui
@@ -506,6 +541,11 @@ msgid "Last Updated on"
 msgstr "Senast uppdaterad den"
 
 #. module: supplier_information_import
+#: model_terms:ir.ui.view,arch_db:supplier_information_import.view_unmatched_model_no_tree
+msgid "Link Product"
+msgstr "Länk Produkt"
+
+#. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_receive_products_wizard__lot_creation_method
 msgid "Lot Creation Method"
 msgstr "Metod för skapande av partier"
@@ -547,6 +587,7 @@ msgstr "Namn"
 
 #. module: supplier_information_import
 #. odoo-python
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
 #: code:addons/supplier_information_import/wizards/product_operations.py:0
 #, python-format
 msgid "No data found in the file."
@@ -579,6 +620,13 @@ msgstr "Välj en fil som ska importeras."
 
 #. module: supplier_information_import
 #. odoo-python
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
+#, python-format
+msgid "Please select a file."
+msgstr "Vänligen välj en fil."
+
+#. module: supplier_information_import
+#. odoo-python
 #: code:addons/supplier_information_import/wizards/product_operations.py:0
 #, python-format
 msgid "Please select an import configuration."
@@ -590,13 +638,6 @@ msgstr "Vänligen välj en importkonfiguration."
 #, python-format
 msgid "Please select exactly two fields for analysis."
 msgstr "Vänligen välj exakt två fält för analys."
-
-#. module: supplier_information_import
-#. odoo-python
-#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
-#, python-format
-msgid "Please upload a file."
-msgstr "Vänligen ladda upp en fil."
 
 #. module: supplier_information_import
 #. odoo-python
@@ -656,9 +697,19 @@ msgid "Product Information for Order {{ object.name }}"
 msgstr "Produktinformation för order {{ object.name }}"
 
 #. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__product_selection
+msgid "Product Selection"
+msgstr "Produktval"
+
+#. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__product_tmpl_id
 msgid "Product Template"
 msgstr "Produktmall"
+
+#. module: supplier_information_import
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__raw_data
+msgid "Raw Data"
+msgstr "Rådata"
 
 #. module: supplier_information_import
 #: model:ir.actions.act_window,name:supplier_information_import.action_receive_products
@@ -757,6 +808,7 @@ msgstr "Leverantörsprislista"
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__supplier_product_code
+#: model:ir.model.fields,field_description:supplier_information_import.field_unmatched_model_no__supplier_product_code
 msgid "Supplier Product Code"
 msgstr "Leverantör Produktkod"
 
@@ -803,6 +855,13 @@ msgstr "Namnlös kolumn"
 
 #. module: supplier_information_import
 #. odoo-python
+#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
+#, python-format
+msgid "Unsupported file format."
+msgstr "Filformat som inte stöds."
+
+#. module: supplier_information_import
+#. odoo-python
 #: code:addons/supplier_information_import/wizards/product_operations.py:0
 #, python-format
 msgid "Unsupported file format. Please use CSV or Excel files."
@@ -811,7 +870,6 @@ msgstr "Filformat som inte stöds. Vänligen använd CSV- eller Excel-filer."
 #. module: supplier_information_import
 #. odoo-python
 #: code:addons/supplier_information_import/models/import_format_config.py:0
-#: code:addons/supplier_information_import/wizards/file_analysis_wizard.py:0
 #, python-format
 msgid "Unsupported file type."
 msgstr "Filtypen stöds inte."
@@ -839,12 +897,12 @@ msgstr "Varningsmeddelande"
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__wifi_password
 msgid "WiFi Password"
-msgstr "Wi-Fi-lösenord"
+msgstr "WiFi-lösenord"
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__wifi_ssid
 msgid "WiFi SSID"
-msgstr "Wi-Fi SSID"
+msgstr "WiFi SSID"
 
 #. module: supplier_information_import
 #. odoo-python

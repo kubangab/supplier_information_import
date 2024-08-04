@@ -1,5 +1,6 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 import logging
+
 _logger = logging.getLogger(__name__)
 
 class IncomingProductInfo(models.Model):
@@ -14,7 +15,7 @@ class IncomingProductInfo(models.Model):
     sn = fields.Char(string='Serial Number')
     mac1 = fields.Char(string='MAC1')
     mac2 = fields.Char(string='MAC2')
-    model_no = fields.Char(string='Model No.')
+    model_no = fields.Char(string='Model No.', required=True)
     imei = fields.Char(string='IMEI')
     app_eui = fields.Char(string='AppEUI')
     app_key = fields.Char(string='AppKey')
@@ -40,29 +41,68 @@ class IncomingProductInfo(models.Model):
     def _search_product(self, values, config):
         _logger.info(f"Searching for product with values: {values}")
     
-        matching_rule = False
+        try:
+            # 1. Check Combination Rules (highest priority)
+            if config.combination_rule_ids:
+                matching_rule = self._check_combination_rules(values, config)
+                if matching_rule:
+                    return matching_rule
+    
+            # 2. Check Unmatched Model Numbers rules
+            model_no = values.get('model_no')
+            if model_no:
+                unmatched_model = self._check_unmatched_model(model_no, config)
+                if unmatched_model:
+                    return unmatched_model.product_id
+    
+            # 3. Check Model No. against Product Code
+            if model_no:
+                product = self._check_model_no_against_product_code(model_no, config)
+                if product:
+                    return product
+    
+        except Exception as e:
+            _logger.error(f"Error in _search_product: {str(e)}")
+            # Do not re-raise the exception, just return False
+    
+        _logger.warning(f"No matching product found for values: {values}")
+        return False
+    
+    def _check_combination_rules(self, values, config):
         for rule in config.combination_rule_ids:
             field1_value = values.get(rule.field_1.destination_field_name)
             field2_value = values.get(rule.field_2.destination_field_name)
             
             if field1_value == rule.value_1 and field2_value == rule.value_2:
-                matching_rule = rule
-                break
-    
-        if matching_rule:
-            _logger.info(f"Found matching combination rule: {matching_rule.name}")
-            if matching_rule.product_id:
-                # Kontrollera om produkten har en leverantör som matchar config.supplier_id
-                if matching_rule.product_id.seller_ids.filtered(lambda s: s.partner_id == config.supplier_id):
-                    _logger.info(f"Found product via combination rule: {matching_rule.product_id.name} (ID: {matching_rule.product_id.id})")
-                    return matching_rule.product_id
-                else:
-                    _logger.warning(f"Matching rule found, but product {matching_rule.product_id.name} is not associated with supplier {config.supplier_id.name}")
-            else:
-                _logger.warning(f"Matching rule found, but no product is set for the rule: {matching_rule.name}")
-    
-        _logger.warning(f"No matching combination rule or product found for values: {values}")
+                if rule.product_id and rule.product_id.seller_ids.filtered(lambda s: s.partner_id == config.supplier_id):
+                    _logger.info(f"Found product via combination rule: {rule.product_id.name} (ID: {rule.product_id.id})")
+                    return rule.product_id
         return False
+    
+    def _check_unmatched_model(self, model_no, config):
+        try:
+            unmatched_model = self.env['unmatched.model.no'].search([
+                ('config_id', '=', config.id),
+                ('model_no', '=', model_no),
+                ('product_id', '!=', False)
+            ], limit=1)
+            
+            if unmatched_model:
+                _logger.info(f"Found product via Unmatched Model Number: {unmatched_model.product_id.name} (ID: {unmatched_model.product_id.id})")
+            return unmatched_model
+        except Exception as e:
+            _logger.error(f"Error checking unmatched model: {str(e)}")
+            return False
+    
+    def _check_model_no_against_product_code(self, model_no, config):
+        product = self.env['product.product'].search([
+            ('seller_ids.product_code', '=', model_no),
+            ('seller_ids.partner_id', '=', config.supplier_id.id)
+        ], limit=1)
+        
+        if product:
+            _logger.info(f"Found product via Model No. matching Product Code: {product.name} (ID: {product.id})")
+        return product
 
     @api.model
     def _get_combined_code(self, values, config):
@@ -112,6 +152,17 @@ class IncomingProductInfo(models.Model):
     
         _logger.info("No matching rule found, returning supplier_product_code")
         return values.get('supplier_product_code')
+    
+    @api.model
+    def create(self, vals):
+        if 'supplier_product_code' not in vals or not vals['supplier_product_code']:
+            vals['supplier_product_code'] = vals.get('model_no', '')
+        return super(IncomingProductInfo, self).create(vals)
+    
+    def write(self, vals):
+        if 'supplier_product_code' in vals and not vals['supplier_product_code']:
+            vals['supplier_product_code'] = self.model_no or ''
+        return super(IncomingProductInfo, self).write(vals)
     
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
