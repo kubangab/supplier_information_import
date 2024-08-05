@@ -4,29 +4,29 @@
               name="Product Info Import"
               parent="stock.menu_stock_root"
               sequence="100"/>
-    
-    <menuitem id="menu_incoming_product_info"
-              name="Incoming Product Info"
-              parent="menu_product_info_import"
-              action="action_incoming_product_info"
-              sequence="10"/>
-    
-    <menuitem id="menu_import_product_info"
-              name="Import Product Info"
-              parent="menu_product_info_import"
-              action="action_import_product_info"
-              sequence="20"/>
 
     <menuitem id="menu_import_format_config" 
               name="Import Configurations" 
               parent="menu_product_info_import" 
               action="action_import_format_config" 
-              sequence="30"/>
+              sequence="10"/>
 
     <menuitem id="menu_file_analysis_wizard"
               name="Analyze Import File"
               action="action_file_analysis_wizard"
               parent="menu_product_info_import"
+              sequence="20"/>
+
+    <menuitem id="menu_incoming_product_info"
+              name="Incoming Product Info"
+              parent="menu_product_info_import"
+              action="action_incoming_product_info"
+              sequence="30"/>
+    
+    <menuitem id="menu_import_product_info"
+              name="Import Product Info"
+              parent="menu_product_info_import"
+              action="action_import_product_info"
               sequence="40"/>
 
     <menuitem id="menu_unmatched_model_no"
