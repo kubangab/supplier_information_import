@@ -1,10 +1,10 @@
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 import base64
 import csv
 import io
 import xlrd
 import logging
-from odoo.exceptions import UserError
-from odoo import models, fields, api, _
 
 _logger = logging.getLogger(__name__)
 

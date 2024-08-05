@@ -11,7 +11,7 @@
                         groups="stock.group_stock_user"/>
                 <button name="action_generate_and_send_excel" 
                         string="Send Product Info" 
-                        type="object" 
+                        type="object"
                         attrs="{'invisible': [('state', '!=', 'done')]}"
                         groups="stock.group_stock_user"/>
             </button>
