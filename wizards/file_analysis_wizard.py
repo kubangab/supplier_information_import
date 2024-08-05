@@ -62,7 +62,7 @@ class FileAnalysisWizard(models.TransientModel):
             elif self.file_type == 'excel':
                 data = self._process_excel(file_content)
             else:
-                return {'warning': {'title': _("Error"), 'message': _("Unsupported file format.")}}
+                raise UserError(_("Unsupported file format."))
     
             if not data:
                 raise UserError(_("No data found in the file."))
@@ -70,30 +70,22 @@ class FileAnalysisWizard(models.TransientModel):
             _logger.info(f"Processed {len(data)} rows from the file")
     
             analysis_result, filtered_combinations = self._analyze_data(data)
-
+    
             _logger.info(f"Analysis result: {analysis_result}")
             _logger.info(f"Filtered combinations: {filtered_combinations}")
     
             self.write({
                 'analysis_result': analysis_result,
-                'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False
+                'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False,
+                'state': 'done'
             })
     
-            result = {
-                'name': _('File Analysis Result'),
-                'type': 'ir.actions.act_window',
-                'res_model': 'file.analysis.wizard',
-                'view_mode': 'form',
-                'res_id': self.id,
-                'target': 'new',
-                'context': {'form_view_initial_mode': 'edit'},
-            }
-            _logger.info(f"Returning view: {result}")
-            return result
-        
+            return self._reopen_view()
+    
         except Exception as e:
             _logger.error(f"Error during file analysis: {str(e)}")
-            raise UserError(_(f"Error during file analysis: {str(e)}"))
+            self.write({'state': 'warning', 'warning_message': _(f"Error during file analysis: {str(e)}")})
+            return self._reopen_view()
 
     def _reopen_view(self):
         return {
@@ -108,13 +100,13 @@ class FileAnalysisWizard(models.TransientModel):
 
     def _process_csv(self, file_content):
         csv_data = io.StringIO(file_content.decode('utf-8'))
-        reader = csv.DictReader(csv_data)
+        reader = csv.DictReader(csv_data, delimiter=';')  # Använd semikolon som avgränsare
         return list(reader)
-
+    
     def _process_excel(self, file_content):
-        book = xlrd.open_workbook(file_contents=file_content)
-        sheet = book.sheet_by_index(0)
-        headers = [str(cell.value) for cell in sheet.row(0)]
+        workbook = xlrd.open_workbook(file_contents=file_content)
+        sheet = workbook.sheet_by_index(0)
+        headers = [str(cell.value).strip() for cell in sheet.row(0)]
         
         data = []
         for i in range(1, sheet.nrows):
@@ -123,62 +115,78 @@ class FileAnalysisWizard(models.TransientModel):
                 cell_value = sheet.cell_value(i, col)
                 if isinstance(cell_value, float) and cell_value.is_integer():
                     cell_value = int(cell_value)
-                row_data[header] = str(cell_value)
+                row_data[header] = str(cell_value).strip()
             data.append(row_data)
         
         return data
 
     def _analyze_data(self, data):
         field1, field2 = self.field_ids
-        field1_name = field1.custom_label or field1.source_column
-        field2_name = field2.custom_label or field2.source_column
-    
-        combinations = {}
+        field1_name = field1.source_column
+        field2_name = field2.source_column
+
+        _logger.info(f"Analyzing fields: {field1_name} and {field2_name}")
+
+        # Step 1: Fetch existing combination rules
+        existing_rules = self.env['import.combination.rule'].search([
+            ('config_id', '=', self.import_config_id.id)
+        ])
+        existing_combinations = {(rule.value_1, rule.value_2) for rule in existing_rules}
+
+        _logger.info(f"Found {len(existing_combinations)} existing combination rules")
+
+        # Step 2: Analyze new combinations
+        new_combinations = {}
         for row in data:
-            val1 = row.get(field1.source_column, '').strip()
-            val2 = row.get(field2.source_column, '').strip()
+            val1 = row.get(field1_name, '').strip()
+            val2 = row.get(field2_name, '').strip()
             
-            # Skip rows where either field is empty
             if not val1 or not val2:
                 continue
             
             key = (val1, val2)
-            combinations[key] = combinations.get(key, 0) + 1
-    
+            if key not in existing_combinations:
+                new_combinations[key] = new_combinations.get(key, 0) + 1
+
+        _logger.info(f"Found {len(new_combinations)} new unique combinations")
+
         # Filter out combinations where field1 has only one unique match in field2
-        filtered_combinations = {k: v for k, v in combinations.items() 
-                                if len([c for c in combinations if c[0] == k[0]]) > 1}
-    
+        filtered_combinations = {k: v for k, v in new_combinations.items() 
+                                 if len([c for c in new_combinations if c[0] == k[0]]) > 1}
+
+        _logger.info(f"Filtered to {len(filtered_combinations)} new combinations")
+
         # Sort the filtered combinations by the first field (Model No.)
         sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
-    
-        result = [f"Analysis of {field1_name} and {field2_name}:"]
+
+        result = [f"Analysis of {field1_name} and {field2_name} (New Combinations):"]
         for (val1, val2), count in sorted_combinations:
             result.append(f"{field1_name}: {val1}, {field2_name}: {val2} - Count: {count}")
-    
-        if filtered_combinations:
-            self.filtered_combinations = repr(dict(sorted_combinations))
-        else:
-            self.filtered_combinations = False
-        _logger.info(f"Set filtered_combinations to: {self.filtered_combinations}")
-    
-        _logger.info(f"Analysis result: {result}")
-        _logger.info(f"Filtered combinations: {filtered_combinations}")
 
         return "\n".join(result), dict(sorted_combinations)
 
     def action_create_combination_rules(self):
+        self.ensure_one()
         filtered_combinations = eval(self.filtered_combinations)  # Convert back to dictionary
         ImportCombinationRule = self.env['import.combination.rule']
+        
         for (val1, val2), _ in filtered_combinations.items():
-            ImportCombinationRule.create({
-                'config_id': self.import_config_id.id,
-                'field_1': self.field_ids[0].id,
-                'field_2': self.field_ids[1].id,
-                'value_1': val1,
-                'value_2': val2,
-                'name': f"{val1} - {val2}",
-            })
+            # Check if the rule already exists
+            existing_rule = ImportCombinationRule.search([
+                ('config_id', '=', self.import_config_id.id),
+                ('value_1', '=', val1),
+                ('value_2', '=', val2)
+            ], limit=1)
+            
+            if not existing_rule:
+                ImportCombinationRule.create({
+                    'config_id': self.import_config_id.id,
+                    'field_1': self.field_ids[0].id,
+                    'field_2': self.field_ids[1].id,
+                    'value_1': val1,
+                    'value_2': val2,
+                    'name': f"{val1} - {val2}",
+                })
 
         return {
             'name': 'Combination Rules',

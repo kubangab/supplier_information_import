@@ -122,7 +122,7 @@ msgstr "Ytterligare information"
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__admin_password
 msgid "Admin Password"
-msgstr "Lösenord för administratör"
+msgstr "Admin lösenord"
 
 #. module: supplier_information_import
 #. odoo-python
@@ -740,7 +740,7 @@ msgstr "Relaterat Stock Picking"
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_incoming_product_info__root_password
 msgid "Root Password"
-msgstr "Lösenord för rot"
+msgstr "Root lösenord"
 
 #. module: supplier_information_import
 #: model:ir.model.fields,field_description:supplier_information_import.field_import_combination_rule__name

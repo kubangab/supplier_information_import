@@ -1,4 +1,5 @@
 from . import mixin
+from . import product_selection_mixin
 from . import import_combination_rule
 from . import import_column_mapping
 from . import incoming_product_info

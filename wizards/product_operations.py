@@ -17,15 +17,20 @@ class ImportProductInfo(models.TransientModel):
     file_name = fields.Char(string='File Name')
     import_config_id = fields.Many2one('import.format.config', string='Import Configuration', required=True)
 
-    def import_file(self):
-        if not self.file:
+    @api.model
+    def import_file(self, wizard_id):
+        wizard = self.browse(wizard_id)
+        if not wizard.exists():
+            raise UserError(_('Import wizard not found.'))
+    
+        if not wizard.file:
             raise UserError(_('Please select a file to import.'))
     
-        config = self.import_config_id
+        config = wizard.import_config_id
         if not config:
             raise UserError(_('Please select an import configuration.'))
     
-        file_content = base64.b64decode(self.file)
+        file_content = base64.b64decode(wizard.file)
         
         try:
             if config.file_type == 'csv':
@@ -40,7 +45,7 @@ class ImportProductInfo(models.TransientModel):
     
             _logger.info(f"Processed {len(data)} rows from the file")
     
-            unmatched_models = self.process_rows(data, config)
+            self.process_rows(data, config)
     
             return {'type': 'ir.actions.act_window_close'}
         except Exception as e:
@@ -96,6 +101,36 @@ class ImportProductInfo(models.TransientModel):
         
         return values
 
+    @api.model
+    def _search_product(self, values, config):
+        _logger.info(f"Searching for product with values: {values}")
+    
+        try:
+            # 1. Check Combination Rules (highest priority)
+            if config.combination_rule_ids:
+                matching_rule = self._check_combination_rules(values, config)
+                if matching_rule:
+                    return matching_rule
+    
+            # 2. Check Unmatched Model Numbers rules
+            model_no = values.get('model_no')
+            if model_no:
+                unmatched_model = self._check_unmatched_model(model_no, config)
+                if unmatched_model:
+                    return unmatched_model.product_id
+    
+            # 3. Check Model No. against Product Code
+            if model_no:
+                product = self._check_model_no_against_product_code(model_no, config)
+                if product:
+                    return product
+    
+        except Exception as e:
+            _logger.error(f"Error in _search_product: {str(e)}")
+    
+        _logger.warning(f"No matching product found for values: {values}")
+        return False
+    
     def process_rows(self, data, config):
         IncomingProductInfo = self.env['incoming.product.info']
         UnmatchedModelNo = self.env['unmatched.model.no']
@@ -110,27 +145,27 @@ class ImportProductInfo(models.TransientModel):
             try:
                 with self.env.cr.savepoint():
                     _logger.info(f"Processing row {index}: {row}")
-            
+    
                     values = self._process_row_values(row, config)
                     _logger.info(f"Row {index}: Processed values: {values}")
-            
+    
                     if 'model_no' not in values or 'sn' not in values:
                         _logger.warning(f"Row {index}: Missing Model No. or Serial Number. Skipping.")
                         continue
-            
+    
                     product = IncomingProductInfo._search_product(values, config)
                     if product:
+                        IncomingProductInfo._log_product_info(product)
                         values['product_id'] = product.id
                         values['supplier_id'] = config.supplier_id.id
                         if 'supplier_product_code' not in values:
-                            values['supplier_product_code'] = values.get('model_no', '')  # Fallback to model_no if available
-                    
+                            values['supplier_product_code'] = values.get('model_no', '')
+    
                         existing_info = IncomingProductInfo.search([
                             ('supplier_id', '=', config.supplier_id.id),
-                            ('model_no', '=', values['model_no']),
                             ('sn', '=', values['sn'])
                         ], limit=1)
-                    
+    
                         if existing_info:
                             _logger.info(f"Row {index}: Updating existing IncomingProductInfo {existing_info.id}")
                             existing_info.write(values)
@@ -159,19 +194,25 @@ class ImportProductInfo(models.TransientModel):
                 failed_rows.append((index, row, str(e)))
                 continue
     
-        # Create or update UnmatchedModelNo records
         for model_no, model_data in unmatched_models.items():
-            existing_unmatched = UnmatchedModelNo.search([
-                ('config_id', '=', config.id),
-                ('model_no', '=', model_no)
-            ], limit=1)
-            if existing_unmatched:
-                existing_unmatched.write({
-                    'count': existing_unmatched.count + model_data['count'],
-                    'raw_data': model_data['raw_data']  # Update with latest data
-                })
-            else:
-                UnmatchedModelNo.create(model_data)
+            try:
+                existing_unmatched = UnmatchedModelNo.search([
+                    ('config_id', '=', config.id),
+                    ('model_no', '=', model_no)
+                ], limit=1)
+                
+                if existing_unmatched:
+                    _logger.info(f"Updating existing UnmatchedModelNo for model_no: {model_no}")
+                    existing_unmatched.write({
+                        'count': existing_unmatched.count + model_data['count'],
+                        'raw_data': model_data['raw_data']
+                    })
+                else:
+                    _logger.info(f"Creating new UnmatchedModelNo for model_no: {model_no}")
+                    UnmatchedModelNo.create(model_data)
+    
+            except Exception as e:
+                _logger.error(f"Error creating/updating UnmatchedModelNo for model_no {model_no}: {str(e)}")
     
         _logger.info("Finished processing all rows")
         

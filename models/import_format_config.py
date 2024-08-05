@@ -20,6 +20,7 @@ class ImportFormatConfig(models.Model):
     ], string='File Type', required=True)
     column_mapping = fields.One2many('import.column.mapping', 'config_id', string='Column Mappings')
     supplier_id = fields.Many2one('res.partner', string='Supplier', domain=[('supplier_rank', '>', 0)], required=True)
+    supplier_name = fields.Char(compute='_compute_supplier_name', string='Supplier Name')
     sample_file = fields.Binary(string='Sample File')
     sample_file_name = fields.Char(string='Sample File Name')
     product_code = fields.Char(string='Product Code')
@@ -31,7 +32,6 @@ class ImportFormatConfig(models.Model):
     def get_incoming_product_info_fields(self):
         return [(field, self.env['incoming.product.info']._fields[field].string) 
                 for field in self.env['incoming.product.info']._fields]
-    
 
     @api.model
     def action_load_sample_columns(self, **kwargs):
@@ -134,6 +134,13 @@ class ImportFormatConfig(models.Model):
                 record._process_sample_file()
         return records
 
+    @api.depends('supplier_id')
+    def _compute_supplier_name(self):
+        for record in self:
+            if record.supplier_id.parent_id:
+                record.supplier_name = f"{record.supplier_id.parent_id.name} / {record.supplier_id.name}"
+            else:
+                record.supplier_name = record.supplier_id.name
     def write(self, vals):
         res = super(ImportFormatConfig, self).write(vals)
         if 'sample_file' in vals:
@@ -196,3 +203,8 @@ class ImportFormatConfig(models.Model):
         
         # Clear temp_column_names after mappings have been created
         self.temp_column_names = False
+        
+    @api.depends('supplier_id')
+    def _compute_actual_supplier(self):
+        for record in self:
+            record.actual_supplier = record.supplier_id.parent_id or record.supplier_id

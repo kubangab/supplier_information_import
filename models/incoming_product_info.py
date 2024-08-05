@@ -9,6 +9,7 @@ class IncomingProductInfo(models.Model):
 
     name = fields.Char(string='Name', compute='_compute_name', store=True)
     supplier_id = fields.Many2one('res.partner', string='Supplier', required=True)
+    supplier_product_code = fields.Char(string='Supplier Product Code', required=True)
     product_id = fields.Many2one('product.product', string='Product')
     product_tmpl_id = fields.Many2one('product.template', related='product_id.product_tmpl_id', store=True)
     supplier_product_code = fields.Char(string='Supplier Product Code', required=True)
@@ -42,48 +43,86 @@ class IncomingProductInfo(models.Model):
         _logger.info(f"Searching for product with values: {values}")
     
         try:
+            supplier = config.supplier_id
+            main_supplier = supplier.parent_id or supplier
+            supplier_and_contacts = self.env['res.partner'].search([
+                '|', '|',
+                ('id', '=', main_supplier.id),
+                ('parent_id', '=', main_supplier.id),
+                ('id', 'child_of', main_supplier.id)
+            ])
+    
+            matching_products_count = self.env['product.product'].search_count([
+                ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
+            ])
+            _logger.info(f"Number of products matching supplier domain: {matching_products_count}")
+    
             # 1. Check Combination Rules (highest priority)
             if config.combination_rule_ids:
-                matching_rule = self._check_combination_rules(values, config)
-                if matching_rule:
-                    return matching_rule
+                matching_product = self._check_combination_rules(values, config, supplier_and_contacts)
+                if matching_product:
+                    return matching_product
     
-            # 2. Check Unmatched Model Numbers rules
+            # 2. Check Model No. against Product Code
             model_no = values.get('model_no')
             if model_no:
-                unmatched_model = self._check_unmatched_model(model_no, config)
-                if unmatched_model:
-                    return unmatched_model.product_id
-    
-            # 3. Check Model No. against Product Code
-            if model_no:
-                product = self._check_model_no_against_product_code(model_no, config)
+                product = self._check_model_no_against_product_code(model_no, config, supplier_and_contacts)
                 if product:
                     return product
+                elif product is None:
+                    # Multiple products found, handle as unmatched
+                    return False
+    
+            # 3. Check supplier's product code
+            supplier_product_code = values.get('supplier_product_code')
+            if supplier_product_code:
+                products = self.env['product.product'].search([
+                    ('seller_ids.partner_id', 'in', supplier_and_contacts.ids),
+                    '|',
+                    ('seller_ids.product_code', '=', supplier_product_code),
+                    ('seller_ids.product_code', 'ilike', supplier_product_code)
+                ])
+                if len(products) == 1:
+                    _logger.info(f"Found product via supplier's product code: {products[0].name} (ID: {products[0].id})")
+                    return products[0]
+                elif len(products) > 1:
+                    _logger.info(f"Multiple products found for supplier_product_code: {supplier_product_code}. Handling as unmatched.")
+                    return False
+    
+            # 4. Check Unmatched Model Numbers rules
+            if model_no:
+                unmatched_model = self._check_unmatched_model(model_no, config, supplier_and_contacts)
+                if unmatched_model and unmatched_model.product_id:
+                    return unmatched_model.product_id
     
         except Exception as e:
             _logger.error(f"Error in _search_product: {str(e)}")
-            # Do not re-raise the exception, just return False
     
         _logger.warning(f"No matching product found for values: {values}")
         return False
-    
-    def _check_combination_rules(self, values, config):
-        for rule in config.combination_rule_ids:
-            field1_value = values.get(rule.field_1.destination_field_name)
-            field2_value = values.get(rule.field_2.destination_field_name)
-            
-            if field1_value == rule.value_1 and field2_value == rule.value_2:
-                if rule.product_id and rule.product_id.seller_ids.filtered(lambda s: s.partner_id == config.supplier_id):
-                    _logger.info(f"Found product via combination rule: {rule.product_id.name} (ID: {rule.product_id.id})")
-                    return rule.product_id
+
+    @api.model
+    def _check_combination_rules(self, values, config, supplier_and_contacts):
+        try:
+            for rule in config.combination_rule_ids:
+                field1_value = values.get(rule.field_1.destination_field_name)
+                field2_value = values.get(rule.field_2.destination_field_name)
+                
+                if field1_value == rule.value_1 and field2_value == rule.value_2:
+                    if rule.product_id and rule.product_id.seller_ids.filtered(lambda s: s.partner_id in supplier_and_contacts):
+                        _logger.info(f"Found product via combination rule: {rule.product_id.name} (ID: {rule.product_id.id})")
+                        return rule.product_id
+        except Exception as e:
+            _logger.error(f"Error in _check_combination_rules: {str(e)}")
         return False
-    
-    def _check_unmatched_model(self, model_no, config):
+
+    @api.model
+    def _check_unmatched_model(self, model_no, config, supplier_and_contacts):
         try:
             unmatched_model = self.env['unmatched.model.no'].search([
                 ('config_id', '=', config.id),
                 ('model_no', '=', model_no),
+                ('supplier_id', 'in', supplier_and_contacts.ids),
                 ('product_id', '!=', False)
             ], limit=1)
             
@@ -94,15 +133,30 @@ class IncomingProductInfo(models.Model):
             _logger.error(f"Error checking unmatched model: {str(e)}")
             return False
     
-    def _check_model_no_against_product_code(self, model_no, config):
-        product = self.env['product.product'].search([
+    @api.model
+    def _check_model_no_against_product_code(self, model_no, config, supplier_and_contacts):
+        domain = [
+            ('seller_ids.partner_id', 'in', supplier_and_contacts.ids),
+            '|', '|', '|',
+            ('default_code', '=', model_no),
+            ('default_code', 'ilike', model_no),
             ('seller_ids.product_code', '=', model_no),
-            ('seller_ids.partner_id', '=', config.supplier_id.id)
-        ], limit=1)
+            ('seller_ids.product_code', 'ilike', model_no)
+        ]
+        _logger.info(f"Searching for product with domain: {domain}")
+        products = self.env['product.product'].search(domain)
         
-        if product:
-            _logger.info(f"Found product via Model No. matching Product Code: {product.name} (ID: {product.id})")
-        return product
+        if products:
+            for product in products:
+                _logger.info(f"Found product matching Model No.: {product.name} (ID: {product.id})")
+            if len(products) == 1:
+                return products[0]
+            else:
+                _logger.info(f"Multiple products found for model_no: {model_no}. Returning None to handle as unmatched.")
+                return None
+        else:
+            _logger.info(f"No product found for model_no: {model_no}")
+        return None
 
     @api.model
     def _get_combined_code(self, values, config):
@@ -152,7 +206,18 @@ class IncomingProductInfo(models.Model):
     
         _logger.info("No matching rule found, returning supplier_product_code")
         return values.get('supplier_product_code')
-    
+
+    @api.model
+    def _log_product_info(self, product):
+        _logger.info(f"Product Details:")
+        _logger.info(f"  Name: {product.name}")
+        _logger.info(f"  ID: {product.id}")
+        _logger.info(f"  Default Code: {product.default_code}")
+        _logger.info(f"  Seller Info:")
+        for seller in product.seller_ids:
+            _logger.info(f"    Partner: {seller.partner_id.name}")
+            _logger.info(f"    Product Code: {seller.product_code}")
+
     @api.model
     def create(self, vals):
         if 'supplier_product_code' not in vals or not vals['supplier_product_code']:

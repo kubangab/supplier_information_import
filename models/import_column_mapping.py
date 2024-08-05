@@ -9,7 +9,7 @@ class ImportColumnMapping(models.Model):
     _description = 'Import Column Mapping'
 
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
-    source_column = fields.Char(string='Source Column Name', readonly=True)
+    source_column = fields.Char(string='Source Column Name', required=True)
     destination_field_name = fields.Selection(
         selection='_get_destination_field_selection',
         string='Destination Field Name',
