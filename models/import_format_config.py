@@ -115,8 +115,42 @@ class ImportFormatConfig(models.Model):
         for record in records:
             if record.sample_file:
                 record._process_sample_file()
+            self._ensure_required_mappings(record)
         return records
 
+    def write(self, vals):
+        res = super(ImportFormatConfig, self).write(vals)
+        if 'sample_file' in vals:
+            self._process_sample_file()
+        self._ensure_required_mappings(self)
+        return res
+
+    def _ensure_required_mappings(self, configs):
+        for config in configs:
+            required_fields = ['sn', 'model_no']
+            existing_mappings = config.column_mapping.filtered(lambda m: m.destination_field_name in required_fields)
+            
+            for field in required_fields:
+                mapping = existing_mappings.filtered(lambda m: m.destination_field_name == field)
+                if not mapping:
+                    self.env['import.column.mapping'].create({
+                        'config_id': config.id,
+                        'source_column': field.upper(),
+                        'destination_field_name': field,
+                        'is_required': True,
+                    })
+                else:
+                    mapping.write({'is_required': True})
+
+    @api.constrains('column_mapping')
+    def _check_required_mappings(self):
+        for config in self:
+            required_fields = ['sn', 'model_no']
+            existing_mappings = config.column_mapping.mapped('destination_field_name')
+            missing_fields = set(required_fields) - set(existing_mappings)
+            if missing_fields:
+                raise ValidationError(_("The following required fields are missing from the mapping: %s") % ', '.join(missing_fields))
+    
     @api.depends('supplier_id')
     def _compute_supplier_name(self):
         for record in self:
@@ -124,12 +158,6 @@ class ImportFormatConfig(models.Model):
                 record.supplier_name = f"{record.supplier_id.parent_id.name} / {record.supplier_id.name}"
             else:
                 record.supplier_name = record.supplier_id.name
-
-    def write(self, vals):
-        res = super(ImportFormatConfig, self).write(vals)
-        if 'sample_file' in vals:
-            self._process_sample_file()
-        return res
 
     def _process_sample_file(self):
         self.ensure_one()

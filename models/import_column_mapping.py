@@ -15,12 +15,8 @@ class ImportColumnMapping(models.Model):
     custom_field_name = fields.Char(string='Custom Field Name')
     custom_label = fields.Char(string='Custom Label', translate=True, required=True)
     is_custom_field = fields.Boolean(string='Is Custom Field', compute='_compute_is_custom_field', store=True)
-    is_required = fields.Boolean(string='Is Required', default=False)
-
-    @api.depends('destination_field_name')
-    def _compute_is_custom_field(self):
-        for record in self:
-            record.is_custom_field = record.destination_field_name == 'custom'
+    is_required = fields.Boolean(string='Is Required', compute='_compute_is_required', store=True)
+    is_readonly = fields.Boolean(string='Is Readonly', compute='_compute_is_readonly')
 
     @api.depends('destination_field_name')
     def _compute_is_required(self):

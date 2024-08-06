@@ -1,4 +1,7 @@
 from odoo import models, fields, api, _
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class IncomingProductInfo(models.Model):
     _name = 'incoming.product.info'
@@ -36,6 +39,9 @@ class IncomingProductInfo(models.Model):
 
     @api.model
     def _search_product(self, values, config):
+        Product = self.env['product.product'].with_context(active_test=False)
+        SupplierInfo = self.env['product.supplierinfo']
+
         supplier = config.supplier_id
         main_supplier = supplier.parent_id or supplier
         supplier_and_contacts = self.env['res.partner'].search([
@@ -45,6 +51,8 @@ class IncomingProductInfo(models.Model):
             ('id', 'child_of', main_supplier.id)
         ])
 
+        domain = [('seller_ids.partner_id', 'in', supplier_and_contacts.ids)]
+
         if config.combination_rule_ids:
             matching_product = self._check_combination_rules(values, config, supplier_and_contacts)
             if matching_product:
@@ -52,24 +60,20 @@ class IncomingProductInfo(models.Model):
 
         model_no = values.get('model_no')
         if model_no:
-            product = self._check_model_no_against_product_code(model_no, config, supplier_and_contacts)
-            if product:
-                return product
-            elif product is None:
-                return False
+            domain.append(('default_code', '=', model_no))
 
         supplier_product_code = values.get('supplier_product_code')
         if supplier_product_code:
-            products = self.env['product.product'].search([
-                ('seller_ids.partner_id', 'in', supplier_and_contacts.ids),
-                '|',
-                ('seller_ids.product_code', '=', supplier_product_code),
-                ('seller_ids.product_code', 'ilike', supplier_product_code)
-            ])
-            if len(products) == 1:
-                return products[0]
-            elif len(products) > 1:
-                return False
+            domain.append('|')
+            domain.append(('seller_ids.product_code', '=', supplier_product_code))
+            domain.append(('seller_ids.product_code', 'ilike', supplier_product_code))
+
+        products = Product.search(domain)
+
+        if len(products) == 1:
+            return products[0]
+        elif len(products) > 1:
+            return False
 
         if model_no:
             unmatched_model = self._check_unmatched_model(model_no, config, supplier_and_contacts)
@@ -150,8 +154,9 @@ class IncomingProductInfo(models.Model):
 
     @api.model
     def create(self, vals):
-        if 'supplier_product_code' not in vals or not vals['supplier_product_code']:
-            vals['supplier_product_code'] = vals.get('model_no', '')
+        if 'sn' not in vals or not vals['sn']:
+            raise ValidationError(_("Serial Number (SN) is required and cannot be empty."))
+        _logger.info(f"Creating incoming product info with values: {vals}")
         return super(IncomingProductInfo, self).create(vals)
     
     def write(self, vals):

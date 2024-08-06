@@ -19,10 +19,13 @@
                                 <tree editable="bottom">
                                     <field name="source_column" readonly="1"/>
                                     <field name="destination_field_name" widget="selection"/>
-                                    <field name="custom_label"/>
-                                    <field name="is_required"/>
+                                    <field name="is_required" force_save="1" attrs="{'readonly': [('is_readonly', '=', True)]}"/>
+                                    <field name="is_readonly" invisible="1"/>
                                 </tree>
                             </field>
+                            <div class="text-muted">
+                                Note: Ensure that the 'Serial Number' field is correctly mapped to the 'SN' column in your import file.
+                            </div>
                         </page>
                         <page string="Combination Rules">
                             <field name="combination_rule_ids">
