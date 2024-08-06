@@ -1,0 +1,3 @@
+from odoo.addons.supplier_information_config import models as config_models
+from odoo.addons.supplier_information_import_file import models as import_file_models
+from odoo.addons.supplier_information_logistics import models as logistics_models
