@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_file_analysis_wizard_form" model="ir.ui.view">
+        <field name="name">file.analysis.wizard.form</field>
+        <field name="model">file.analysis.wizard</field>
+        <field name="arch" type="xml">
+            <form string="File Analysis">
+                <field name="state" invisible="1"/>
+                <div class="alert alert-warning" role="alert" attrs="{'invisible': [('state', '!=', 'warning')]}">
+                    <field name="warning_message" readonly="1"/>
+                </div>
+                <group>
+                    <field name="import_config_id"/>
+                    <field name="file" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                    <field name="file_type" invisible="1"/>
+                    <field name="field_names" readonly="1"/>
+                    <field name="field_ids" widget="many2many_tags" options="{'no_create': True}" domain="[('config_id', '=', import_config_id)]"/>
+                    <field name="filtered_combinations" invisible="1"/>
+                </group>
+                <group>
+                    <field name="analysis_result" readonly="1" attrs="{'invisible': [('analysis_result', '=', False)]}"/>
+                </group>
+                <footer>
+                    <button name="action_analyze_file" string="Analyze" type="object" class="btn-primary"/>
+                    <button name="action_create_combination_rules" 
+                            string="Create Combination Rules" 
+                            type="object" 
+                            class="btn-secondary" 
+                            attrs="{'invisible': ['|', ('analysis_result', '=', False), ('filtered_combinations', '=', False)]}"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_file_analysis_wizard" model="ir.actions.act_window">
+        <field name="name">File Analysis</field>
+        <field name="res_model">file.analysis.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
