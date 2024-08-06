@@ -1,12 +1,5 @@
-import base64
-import csv
-import io
-import xlrd
-import logging
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-
-_logger = logging.getLogger(__name__)
 
 class ReceiveProducts(models.TransientModel):
     _name = 'receive.products.wizard'

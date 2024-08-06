@@ -4,10 +4,6 @@ import io
 import xlrd
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-import logging
-
-_logger = logging.getLogger(__name__)
-
 
 class ImportProductInfo(models.TransientModel):
     _name = 'import.product.info'
@@ -43,24 +39,18 @@ class ImportProductInfo(models.TransientModel):
             if not data:
                 raise UserError(_('No data found in the file.'))
     
-            _logger.info(f"Processed {len(data)} rows from the file")
-    
             self.process_rows(data, config)
     
             return {'type': 'ir.actions.act_window_close'}
         except Exception as e:
-            _logger.error(f"Error during file import: {str(e)}")
             raise UserError(_(f"Error during file import: {str(e)}"))
 
     def process_csv(self, file_content):
         try:
             csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
-            reader = csv.DictReader(csv_data, delimiter=';')  # Using semicolon as delimiter
-            data = list(reader)
-            _logger.info(f"Processed {len(data)} rows from CSV file")
-            return data
+            reader = csv.DictReader(csv_data, delimiter=';')
+            return list(reader)
         except Exception as e:
-            _logger.error(f"Error processing CSV file: {str(e)}")
             raise UserError(_(f'Error processing CSV file: {str(e)}'))
 
     def process_excel(self, file_content):
@@ -79,10 +69,8 @@ class ImportProductInfo(models.TransientModel):
                     row_data[header] = str(cell_value).strip()
                 data.append(row_data)
             
-            _logger.info(f"Processed {len(data)} rows from Excel file")
             return data
         except Exception as e:
-            _logger.error(f"Error processing Excel file: {str(e)}")
             raise UserError(_(f'Error processing Excel file: {str(e)}'))
 
     def _process_row_values(self, row, config):
@@ -96,47 +84,37 @@ class ImportProductInfo(models.TransientModel):
         if combined_code:
             values['supplier_product_code'] = combined_code
         elif 'model_no' in values:
-            # Use model_no as supplier_product_code if no combined code is generated
             values['supplier_product_code'] = values['model_no']
         
         return values
 
     @api.model
     def _search_product(self, values, config):
-        _logger.info(f"Searching for product with values: {values}")
-    
         try:
-            # 1. Check Combination Rules (highest priority)
             if config.combination_rule_ids:
                 matching_rule = self._check_combination_rules(values, config)
                 if matching_rule:
                     return matching_rule
     
-            # 2. Check Unmatched Model Numbers rules
             model_no = values.get('model_no')
             if model_no:
                 unmatched_model = self._check_unmatched_model(model_no, config)
                 if unmatched_model:
                     return unmatched_model.product_id
     
-            # 3. Check Model No. against Product Code
             if model_no:
                 product = self._check_model_no_against_product_code(model_no, config)
                 if product:
                     return product
     
         except Exception as e:
-            _logger.error(f"Error in _search_product: {str(e)}")
+            pass
     
-        _logger.warning(f"No matching product found for values: {values}")
         return False
     
     def process_rows(self, data, config):
         IncomingProductInfo = self.env['incoming.product.info']
         UnmatchedModelNo = self.env['unmatched.model.no']
-        
-        _logger.info(f"Starting to process {len(data)} rows")
-        _logger.info(f"Config supplier_id: {config.supplier_id.id}")
         
         unmatched_models = {}
         failed_rows = []
@@ -144,18 +122,13 @@ class ImportProductInfo(models.TransientModel):
         for index, row in enumerate(data, start=1):
             try:
                 with self.env.cr.savepoint():
-                    _logger.info(f"Processing row {index}: {row}")
-    
                     values = self._process_row_values(row, config)
-                    _logger.info(f"Row {index}: Processed values: {values}")
     
                     if 'model_no' not in values or 'sn' not in values:
-                        _logger.warning(f"Row {index}: Missing Model No. or Serial Number. Skipping.")
                         continue
     
                     product = IncomingProductInfo._search_product(values, config)
                     if product:
-                        IncomingProductInfo._log_product_info(product)
                         values['product_id'] = product.id
                         values['supplier_id'] = config.supplier_id.id
                         if 'supplier_product_code' not in values:
@@ -167,13 +140,10 @@ class ImportProductInfo(models.TransientModel):
                         ], limit=1)
     
                         if existing_info:
-                            _logger.info(f"Row {index}: Updating existing IncomingProductInfo {existing_info.id}")
                             existing_info.write(values)
                         else:
-                            _logger.info(f"Row {index}: Creating new IncomingProductInfo")
                             IncomingProductInfo.create(values)
                     else:
-                        _logger.warning(f"Row {index}: No matching product found for values: {values}. Adding to unmatched models.")
                         model_no = values.get('model_no')
                         if model_no not in unmatched_models:
                             unmatched_models[model_no] = {
@@ -190,7 +160,6 @@ class ImportProductInfo(models.TransientModel):
                             unmatched_models[model_no]['count'] += 1
     
             except Exception as e:
-                _logger.error(f"Error processing row {index}: {str(e)}")
                 failed_rows.append((index, row, str(e)))
                 continue
     
@@ -202,21 +171,14 @@ class ImportProductInfo(models.TransientModel):
                 ], limit=1)
                 
                 if existing_unmatched:
-                    _logger.info(f"Updating existing UnmatchedModelNo for model_no: {model_no}")
                     existing_unmatched.write({
                         'count': existing_unmatched.count + model_data['count'],
                         'raw_data': model_data['raw_data']
                     })
                 else:
-                    _logger.info(f"Creating new UnmatchedModelNo for model_no: {model_no}")
                     UnmatchedModelNo.create(model_data)
     
             except Exception as e:
-                _logger.error(f"Error creating/updating UnmatchedModelNo for model_no {model_no}: {str(e)}")
-    
-        _logger.info("Finished processing all rows")
-        
-        if failed_rows:
-            _logger.warning(f"Failed to process {len(failed_rows)} rows")
+                pass
     
         return list(unmatched_models.keys())

@@ -1,8 +1,5 @@
-import logging
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
-
-_logger = logging.getLogger(__name__)
+from odoo.exceptions import UserError, ValidationError
 
 class ImportColumnMapping(models.Model):
     _name = 'import.column.mapping'
@@ -82,15 +79,7 @@ class ImportColumnMapping(models.Model):
         selection = self._fields['destination_field_name'].selection
         if callable(selection):
             selection = selection(self)
-        selection_dict = {}
-        for item in selection:
-            if isinstance(item, (list, tuple)):
-                if len(item) == 2:
-                    selection_dict[item[0]] = item[1]
-                else:
-                    selection_dict[item[0]] = item[0]
-            else:
-                selection_dict[item] = item
+        selection_dict = {item[0]: item[1] for item in selection if isinstance(item, (list, tuple)) and len(item) == 2}
         return selection_dict.get(self.destination_field_name, self.source_column or self.destination_field_name)
 
     @api.model
@@ -108,7 +97,7 @@ class ImportColumnMapping(models.Model):
     def _fill_empty_custom_labels(self):
         empty_labels = self.search([('custom_label', '=', False)])
         for record in empty_labels:
-            record.custom_label = record._get_default_custom_label(record.destination_field_name, record.source_column)
+            record.custom_label = record._get_default_custom_label()
 
     @api.constrains('config_id', 'custom_label', 'is_custom_field')
     def _check_unique_custom_label(self):

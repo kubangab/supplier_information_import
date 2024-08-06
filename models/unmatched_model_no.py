@@ -14,6 +14,7 @@ class UnmatchedModelNo(models.Model, ProductSelectionMixin):
     supplier_product_code = fields.Char(string='Supplier Product Code')
     product_id = fields.Many2one('product.product', string='Product')
     count = fields.Integer(string='Count', default=1)
+    raw_data = fields.Text(string='Raw Data')
 
     product_selection = fields.Selection(selection='_get_product_codes', string='Product Selection')
 

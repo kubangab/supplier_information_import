@@ -2,11 +2,8 @@ import base64
 import csv
 import io
 import xlrd
-import logging
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-
-_logger = logging.getLogger(__name__)
 
 class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
@@ -20,14 +17,9 @@ class FileAnalysisWizard(models.TransientModel):
                                  domain="[('config_id', '=', import_config_id)]")
     field_names = fields.Char(compute='_compute_field_names', string='Available Fields')
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
-
     state = fields.Selection([('draft', 'Draft'), ('warning', 'Warning'), ('done', 'Done')], default='draft')
     warning_message = fields.Char(string='Warning Message')
-    
-    # New field for product code
     product_code = fields.Char(string='Product Code')
-    
-    # New field to store filtered combinations
     filtered_combinations = fields.Text(string='Filtered Combinations')
 
     @api.depends('import_config_id.column_mapping')
@@ -40,10 +32,7 @@ class FileAnalysisWizard(models.TransientModel):
     def _onchange_import_config(self):
         self.ensure_one()
         if self.import_config_id:
-            self.field_ids = False  # Clear previous selection
-            _logger.info(f"Loaded {len(self.import_config_id.column_mapping)} fields for config {self.import_config_id.name}")
-            for field in self.import_config_id.column_mapping:
-                _logger.info(f"Field: {field.custom_label or field.source_column} (ID: {field.id})")
+            self.field_ids = False
 
     def action_analyze_file(self):
         self.ensure_one()
@@ -67,12 +56,7 @@ class FileAnalysisWizard(models.TransientModel):
             if not data:
                 raise UserError(_("No data found in the file."))
     
-            _logger.info(f"Processed {len(data)} rows from the file")
-    
             analysis_result, filtered_combinations = self._analyze_data(data)
-    
-            _logger.info(f"Analysis result: {analysis_result}")
-            _logger.info(f"Filtered combinations: {filtered_combinations}")
     
             self.write({
                 'analysis_result': analysis_result,
@@ -83,7 +67,6 @@ class FileAnalysisWizard(models.TransientModel):
             return self._reopen_view()
     
         except Exception as e:
-            _logger.error(f"Error during file analysis: {str(e)}")
             self.write({'state': 'warning', 'warning_message': _(f"Error during file analysis: {str(e)}")})
             return self._reopen_view()
 
@@ -100,7 +83,7 @@ class FileAnalysisWizard(models.TransientModel):
 
     def _process_csv(self, file_content):
         csv_data = io.StringIO(file_content.decode('utf-8'))
-        reader = csv.DictReader(csv_data, delimiter=';')  # Använd semikolon som avgränsare
+        reader = csv.DictReader(csv_data, delimiter=';')
         return list(reader)
     
     def _process_excel(self, file_content):
@@ -125,17 +108,11 @@ class FileAnalysisWizard(models.TransientModel):
         field1_name = field1.source_column
         field2_name = field2.source_column
 
-        _logger.info(f"Analyzing fields: {field1_name} and {field2_name}")
-
-        # Step 1: Fetch existing combination rules
         existing_rules = self.env['import.combination.rule'].search([
             ('config_id', '=', self.import_config_id.id)
         ])
         existing_combinations = {(rule.value_1, rule.value_2) for rule in existing_rules}
 
-        _logger.info(f"Found {len(existing_combinations)} existing combination rules")
-
-        # Step 2: Analyze new combinations
         new_combinations = {}
         for row in data:
             val1 = row.get(field1_name, '').strip()
@@ -148,15 +125,9 @@ class FileAnalysisWizard(models.TransientModel):
             if key not in existing_combinations:
                 new_combinations[key] = new_combinations.get(key, 0) + 1
 
-        _logger.info(f"Found {len(new_combinations)} new unique combinations")
-
-        # Filter out combinations where field1 has only one unique match in field2
         filtered_combinations = {k: v for k, v in new_combinations.items() 
                                  if len([c for c in new_combinations if c[0] == k[0]]) > 1}
 
-        _logger.info(f"Filtered to {len(filtered_combinations)} new combinations")
-
-        # Sort the filtered combinations by the first field (Model No.)
         sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
 
         result = [f"Analysis of {field1_name} and {field2_name} (New Combinations):"]
@@ -167,11 +138,10 @@ class FileAnalysisWizard(models.TransientModel):
 
     def action_create_combination_rules(self):
         self.ensure_one()
-        filtered_combinations = eval(self.filtered_combinations)  # Convert back to dictionary
+        filtered_combinations = eval(self.filtered_combinations)
         ImportCombinationRule = self.env['import.combination.rule']
         
         for (val1, val2), _ in filtered_combinations.items():
-            # Check if the rule already exists
             existing_rule = ImportCombinationRule.search([
                 ('config_id', '=', self.import_config_id.id),
                 ('value_1', '=', val1),
