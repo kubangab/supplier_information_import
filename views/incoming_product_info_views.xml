@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_incoming_product_info_tree" model="ir.ui.view">
+        <field name="name">incoming.product.info.tree</field>
+        <field name="model">incoming.product.info</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="supplier_id"/>
+                <field name="product_id"/>
+                <field name="sn"/>
+                <field name="model_no"/>
+                <field name="state"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_incoming_product_info_form" model="ir.ui.view">
+        <field name="name">incoming.product.info.form</field>
+        <field name="model">incoming.product.info</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="supplier_id"/>
+                            <field name="product_id"/>
+                            <field name="sn"/>
+                            <field name="model_no"/>
+                        </group>
+                        <group>
+                            <field name="mac1"/>
+                            <field name="mac2"/>
+                            <field name="imei"/>
+                            <field name="app_eui"/>
+                            <field name="app_key"/>
+                            <field name="dev_eui"/>
+                        </group>
+                    </group>
+                    <group string="Additional Information">
+                        <field name="app_key_mode"/>
+                        <field name="pn"/>
+                        <field name="root_password"/>
+                        <field name="admin_password"/>
+                        <field name="wifi_password"/>
+                        <field name="wifi_ssid"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_incoming_product_info" model="ir.actions.act_window">
+        <field name="name">Incoming Product Info</field>
+        <field name="res_model">incoming.product.info</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>
