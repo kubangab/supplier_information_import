@@ -13,11 +13,12 @@ This module allows importing product information from various suppliers and mana
                 'product',
                 'stock',
                 'purchase',
+                'supplier_information_config',
+                'supplier_information_import_file',
+                'supplier_information_logistics'
     ],
+    'data': ['views/menu_views'],
     'license': 'LGPL-3',
-    'data': [
-        'views/menu_views.xml',
-    ],
     'installable': True,
     'application': False,
     'auto_install': False,
