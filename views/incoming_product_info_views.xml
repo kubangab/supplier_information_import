@@ -23,7 +23,7 @@
                 <field name="name" string="Name" filter_domain="['|', ('name', 'ilike', self), ('supplier_product_code', 'ilike', self)]"/>
                 <field name="supplier_id"/>
                 <field name="product_id"/>
-                <field name="sn" string="Serial Number" filter_domain="['|', ('sn', 'ilike', self), ('model_no', 'ilike', self)]"/>
+                <field name="sn" string="Serial Number"/>
                 <field name="model_no"/>
                 <field name="state"/>
                 <filter string="Pending" name="pending" domain="[('state', '=', 'pending')]"/>

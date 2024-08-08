@@ -5,7 +5,6 @@ import xlrd
 import logging
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-from .utils import log_and_notify, collect_errors
 
 _logger = logging.getLogger(__name__)
 
@@ -21,14 +20,14 @@ class ImportProductInfo(models.TransientModel):
     def import_file(self, wizard_id):
         wizard = self.browse(wizard_id)
         if not wizard.exists():
-            raise ValidationError(_('Import wizard not found.'))
+            raise UserError(_('Import wizard not found.'))
         
         if not wizard.file:
-            raise ValidationError(_('Please select a file to import.'))
+            raise UserError(_('Please select a file to import.'))
         
         config = wizard.import_config_id
         if not config:
-            raise ValidationError(_('Please select an import configuration.'))
+            raise UserError(_('Please select an import configuration.'))
     
         file_content = base64.b64decode(wizard.file)
         
@@ -44,97 +43,121 @@ class ImportProductInfo(models.TransientModel):
                 raise UserError(_('No data found in the file.'))
     
             IncomingProductInfo = self.env['incoming.product.info']
-            UnmatchedModelNo = self.env['unmatched.model.no']
             
             to_create = []
             to_update = []
             unmatched_models = {}
             errors = []
 
+            to_create = []
             for index, row in enumerate(data, start=1):
                 try:
                     values = self._process_row_values(row, config)
-                    if 'sn' not in values or not values['sn']:
-                        raise ValidationError(_(f"Row {index}: Serial Number (SN) is missing or empty."))
                     
-                    if 'model_no' not in values or not values['model_no']:
-                        raise ValidationError(_(f"Row {index}: Model Number is missing or empty."))
-
+                    # Check for required fields
+                    required_fields = ['sn']
+                    missing_fields = [field for field in required_fields if field not in values or not values[field]]
+                    
+                    if missing_fields:
+                        errors.append((index, row, _(f"Missing required fields: {', '.join(missing_fields)}")))
+                        continue
+        
+                    if not values.get('model_no') and not values.get('supplier_product_code'):
+                        errors.append((index, row, _("Unable to determine Model Number or Supplier Product Code")))
+                        continue
+        
                     product = IncomingProductInfo._search_product(values, config)
                     if product:
                         values['product_id'] = product.id
                         values['supplier_id'] = config.supplier_id.id
-                        if 'supplier_product_code' not in values:
-                            values['supplier_product_code'] = values.get('model_no', '')
-
+                        values['state'] = 'pending'
+        
                         existing_info = IncomingProductInfo.search([
                             ('supplier_id', '=', config.supplier_id.id),
                             ('sn', '=', values['sn'])
                         ], limit=1)
-
+        
                         if existing_info:
-                            to_update.append((existing_info, values))
+                            existing_info.write(values)
+                            to_update.append(existing_info)
+                            _logger.info(f"Updated existing record for SN: {values['sn']}")
                         else:
                             to_create.append(values)
+                            _logger.info(f"Prepared new record for creation, SN: {values['sn']}")
                     else:
-                        model_no = values.get('model_no')
-                        if model_no not in unmatched_models:
-                            unmatched_models[model_no] = {
-                                'config_id': config.id,
-                                'supplier_id': config.supplier_id.id,
-                                'model_no': model_no,
-                                'pn': values.get('pn'),
-                                'product_code': values.get('supplier_product_code') or values.get('product_code') or model_no,
-                                'supplier_product_code': values.get('supplier_product_code') or model_no,
-                                'raw_data': str(values),
-                                'count': 1
-                            }
-                        else:
-                            unmatched_models[model_no]['count'] += 1
-
+                        unmatched_models.setdefault(values.get('model_no') or values.get('supplier_product_code'), []).append(values)
+                        _logger.warning(f"No product found for row {index}, model_no: {values.get('model_no')}, supplier_product_code: {values.get('supplier_product_code')}")
+        
                 except Exception as e:
                     errors.append((index, row, str(e)))
-
-            # Batch create new records
+                    _logger.error(f"Error processing row {index}: {str(e)}", exc_info=True)
+        
+            # Create new records
             if to_create:
-                IncomingProductInfo.create(to_create)
+                new_records = IncomingProductInfo.create(to_create)
+                _logger.info(f"Created {len(new_records)} new records")
+                for record in new_records:
+                    self._create_or_update_lot(record)
+        
+            # Update existing records
+            for existing in to_update:
+                self._create_or_update_lot(existing)
+            _logger.info(f"Updated {len(to_update)} existing records")
 
-            # Batch update existing records
-            for record, values in to_update:
-                record.write(values)
+            # Handle unmatched models
+            UnmatchedModelNo = self.env['unmatched.model.no']
+            for model_no, model_values in unmatched_models.items():
+                UnmatchedModelNo._add_to_unmatched_models(model_values[0], config, len(model_values))
 
-            # Batch create or update unmatched models
-            for model_no, model_data in unmatched_models.items():
-                existing_unmatched = UnmatchedModelNo.search([
-                    ('config_id', '=', config.id),
-                    ('model_no', '=', model_no)
-                ], limit=1)
-                
-                if existing_unmatched:
-                    existing_unmatched.write({
-                        'count': existing_unmatched.count + model_data['count'],
-                        'raw_data': model_data['raw_data']
-                    })
-                else:
-                    UnmatchedModelNo.create(model_data)
-
+            message = _(f'Successfully imported {len(to_create)} new records, updated {len(to_update)} existing records, and found {len(unmatched_models)} unmatched models.')
             if errors:
                 error_message = "\n".join([f"Row {index}: {error}" for index, _, error in errors])
-                raise ValidationError(_(f"Errors occurred during import:\n{error_message}"))
+                message += _("\n\nThe following errors occurred during import:\n%s") % error_message
+                log_level = "warning"
+            else:
+                log_level = "info"
+
+            # Log message
+            _logger.log(logging.INFO if log_level == "info" else logging.WARNING, message)
 
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
-                    'title': _('Import Successful'),
-                    'message': _(f'Successfully imported {len(to_create)} new records, updated {len(to_update)} existing records, and found {len(unmatched_models)} unmatched models.'),
-                    'type': 'success',
-                    'sticky': False,
+                    'title': _('Import Completed'),
+                    'message': message,
+                    'type': 'warning' if errors else 'success',
+                    'sticky': True if errors else False,
                 }
             }
     
         except Exception as e:
-            raise ValidationError(_(f"Error during file import: {str(e)}"))
+            _logger.error(f"Error during file import: {str(e)}", exc_info=True)
+            raise UserError(_(f"Error during file import: {str(e)}"))
+
+    def _create_or_update_lot(self, record):
+        StockLot = self.env['stock.lot']
+        try:
+            existing_lot = StockLot.search([
+                ('name', '=', record.sn),
+                ('product_id', '=', record.product_id.id),
+                ('company_id', '=', self.env.company.id)
+            ], limit=1)
+
+            if existing_lot:
+                record.write({'state': 'received'})
+                _logger.info(f"Updated existing lot for product {record.product_id.name}, SN {record.sn}")
+            else:
+                StockLot.create({
+                    'name': record.sn,
+                    'product_id': record.product_id.id,
+                    'company_id': self.env.company.id,
+                })
+                record.write({'state': 'received'})
+                _logger.info(f"Created new lot for product {record.product_id.name}, SN {record.sn}")
+        except Exception as e:
+            _logger.error(f"Error handling lot for product {record.product_id.name}, SN {record.sn}: {str(e)}")
+            record.write({'state': 'pending'})
 
     def _process_csv(self, file_content):
         try:
@@ -177,35 +200,50 @@ class ImportProductInfo(models.TransientModel):
             elif dest_field:
                 _logger.warning(f"Missing value for '{source_column}' (maps to '{dest_field}')")
         
-        if 'sn' not in values:
-            _logger.error(f"Serial number (SN) not found in imported data: {row}")
-        
+        # If model_no is missing, try to use supplier_product_code or pn
+        if 'model_no' not in values or not values['model_no']:
+            values['model_no'] = values.get('supplier_product_code') or values.get('pn') or ''
+            if values['model_no']:
+                _logger.info(f"Using {values['model_no']} as model_no")
+            else:
+                _logger.warning("Unable to determine model_no")
+    
+        # Ensure supplier_product_code is set
+        if 'supplier_product_code' not in values or not values['supplier_product_code']:
+            values['supplier_product_code'] = values.get('model_no') or values.get('pn') or ''
+            if values['supplier_product_code']:
+                _logger.info(f"Using {values['supplier_product_code']} as supplier_product_code")
+            else:
+                _logger.warning("Unable to determine supplier_product_code")
+    
         _logger.info(f"Processed values for row: {values}")
         return values
 
-    @api.model
-    def _search_product(self, values, config):
-        try:
-            if config.combination_rule_ids:
-                matching_rule = self._check_combination_rules(values, config)
-                if matching_rule:
-                    return matching_rule
-    
-            model_no = values.get('model_no')
-            if model_no:
-                unmatched_model = self._check_unmatched_model(model_no, config)
-                if unmatched_model:
-                    return unmatched_model.product_id
-    
-            if model_no:
-                product = self._check_model_no_against_product_code(model_no, config)
-                if product:
-                    return product
-    
-        except Exception as e:
-            pass
-    
-        return False
+    def _add_to_unmatched_models(self, values, config):
+        UnmatchedModelNo = self.env['unmatched.model.no']
+        model_no = values.get('model_no')
+        existing = UnmatchedModelNo.search([
+            ('config_id', '=', config.id),
+            ('model_no', '=', model_no)
+        ], limit=1)
+
+        if existing:
+            existing.write({
+                'count': existing.count + 1,
+                'raw_data': f"{existing.raw_data}\n{str(values)}"
+            })
+        else:
+            UnmatchedModelNo.create({
+                'config_id': config.id,
+                'supplier_id': config.supplier_id.id,
+                'model_no': model_no,
+                'pn': values.get('pn'),
+                'product_code': values.get('supplier_product_code') or model_no,
+                'raw_data': str(values),
+                'count': 1
+            })
+        _logger.info(f"Added to unmatched models: {model_no}")
+
     
     @api.model
     def process_rows(self, data, config):

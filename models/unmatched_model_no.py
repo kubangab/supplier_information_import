@@ -38,3 +38,29 @@ class UnmatchedModelNo(models.Model, ProductSelectionMixin):
     def _onchange_product_selection(self):
         if self.product_selection:
             self.product_id = self.product_selection
+
+    @api.model
+    def _add_to_unmatched_models(self, values, config, count=1):
+        model_no = values.get('model_no')
+        existing = self.search([
+            ('config_id', '=', config.id),
+            ('model_no', '=', model_no)
+        ], limit=1)
+
+        if existing:
+            # Update existing unmatched model
+            existing.write({
+                'count': existing.count + count,
+                'raw_data': f"{existing.raw_data}\n{str(values)}"
+            })
+        else:
+            # Create new unmatched model
+            self.create({
+                'config_id': config.id,
+                'supplier_id': config.supplier_id.id,
+                'model_no': model_no,
+                'pn': values.get('pn'),
+                'product_code': values.get('supplier_product_code') or model_no,
+                'raw_data': str(values),
+                'count': count
+            })

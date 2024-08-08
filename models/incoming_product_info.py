@@ -1,5 +1,7 @@
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError, ValidationError
 import logging
+import re
 
 _logger = logging.getLogger(__name__)
 
@@ -12,7 +14,7 @@ class IncomingProductInfo(models.Model):
     supplier_product_code = fields.Char(string='Supplier Product Code', required=True)
     product_id = fields.Many2one('product.product', string='Product')
     product_tmpl_id = fields.Many2one('product.template', related='product_id.product_tmpl_id', store=True)
-    sn = fields.Char(string='Serial Number')
+    sn = fields.Char(string='Serial Number', required=True)
     mac1 = fields.Char(string='MAC1')
     mac2 = fields.Char(string='MAC2')
     model_no = fields.Char(string='Model No.', required=True)
@@ -39,73 +41,115 @@ class IncomingProductInfo(models.Model):
 
     @api.model
     def _search_product(self, values, config):
-        Product = self.env['product.product'].with_context(active_test=False)
-        SupplierInfo = self.env['product.supplierinfo']
+        try:
+            _logger.info(f"Starting _search_product with values: {values}")
+            supplier = config.supplier_id
+            main_supplier = supplier.parent_id or supplier
+            supplier_domain = [
+                '|', '|',
+                ('id', '=', main_supplier.id),
+                ('parent_id', '=', main_supplier.id),
+                ('id', 'child_of', main_supplier.id)
+            ]
+            supplier_and_contacts = self.env['res.partner'].search(supplier_domain)
+            _logger.info(f"Supplier and contacts: {supplier_and_contacts.mapped('name')}")
 
-        supplier = config.supplier_id
-        main_supplier = supplier.parent_id or supplier
-        supplier_and_contacts = self.env['res.partner'].search([
-            '|', '|',
-            ('id', '=', main_supplier.id),
-            ('parent_id', '=', main_supplier.id),
-            ('id', 'child_of', main_supplier.id)
-        ])
+            model_no = values.get('model_no')
+            supplier_product_code = values.get('supplier_product_code') or model_no
 
-        domain = [('seller_ids.partner_id', 'in', supplier_and_contacts.ids)]
+            # 1. Check Combination Rules
+            rule_product = self._check_combination_rules(values, config, supplier_and_contacts)
+            if rule_product:
+                _logger.info(f"Product found via Combination Rules: {rule_product.name}")
+                return rule_product
 
-        if config.combination_rule_ids:
-            matching_product = self._check_combination_rules(values, config, supplier_and_contacts)
-            if matching_product:
-                return matching_product
+            # 2. Check Unmatched Model No
+            unmatched_product = self._check_unmatched_model(model_no, config, supplier_and_contacts)
+            if unmatched_product:
+                _logger.info(f"Product found via Unmatched Model No: {unmatched_product.name}")
+                return unmatched_product
 
-        model_no = values.get('model_no')
-        if model_no:
-            domain.append(('default_code', '=', model_no))
+            # 3. Check against supplier product code
+            domain = [
+                ('seller_ids.product_code', '=', supplier_product_code),
+                ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
+            ]
+            
+            _logger.info(f"Search domain: {domain}")
+            products = self.env['product.product'].search(domain)
+            _logger.info(f"Found {len(products)} products")
 
-        supplier_product_code = values.get('supplier_product_code')
-        if supplier_product_code:
-            domain.append('|')
-            domain.append(('seller_ids.product_code', '=', supplier_product_code))
-            domain.append(('seller_ids.product_code', 'ilike', supplier_product_code))
+            if len(products) == 1:
+                _logger.info(f"Single product found: {products.name}")
+                return products
+            elif len(products) > 1:
+                _logger.warning(f"Multiple products found for supplier_product_code {supplier_product_code}. Adding to Unmatched Model No.")
+                self._add_to_unmatched_models(values, config)
+                return False
 
-        products = Product.search(domain)
-
-        if len(products) == 1:
-            return products[0]
-        elif len(products) > 1:
+            _logger.info(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
+            self._add_to_unmatched_models(values, config)
+            return False
+        
+        except Exception as e:
+            _logger.error(f"Error in _search_product: {str(e)}", exc_info=True)
             return False
 
-        if model_no:
-            unmatched_model = self._check_unmatched_model(model_no, config, supplier_and_contacts)
-            if unmatched_model and unmatched_model.product_id:
-                return unmatched_model.product_id
-
-        return False
-
-    @api.model
     def _check_combination_rules(self, values, config, supplier_and_contacts):
         for rule in config.combination_rule_ids:
             field1_value = values.get(rule.field_1.destination_field_name)
             field2_value = values.get(rule.field_2.destination_field_name)
             
-            if field1_value == rule.value_1 and field2_value == rule.value_2:
-                if rule.product_id and rule.product_id.seller_ids.filtered(lambda s: s.partner_id in supplier_and_contacts):
-                    return rule.product_id
+            # Kontrollera om värdena matchar regeln
+            if (field1_value == rule.value_1 or not rule.value_1) and (field2_value == rule.value_2 or not rule.value_2):
+                if rule.product_id:
+                    # Kontrollera om produkten har en leverantör som matchar
+                    matching_supplier = rule.product_id.seller_ids.filtered(
+                        lambda s: s.partner_id in supplier_and_contacts
+                    )
+                    if matching_supplier:
+                        _logger.info(f"Matched product {rule.product_id.name} via Combination Rule: {rule.name}")
+                        return rule.product_id
+        
+        _logger.info("No match found via Combination Rules")
         return False
 
-    @api.model
     def _check_unmatched_model(self, model_no, config, supplier_and_contacts):
-        return self.env['unmatched.model.no'].search([
+        unmatched = self.env['unmatched.model.no'].search([
             ('config_id', '=', config.id),
             ('model_no', '=', model_no),
             ('supplier_id', 'in', supplier_and_contacts.ids),
             ('product_id', '!=', False)
         ], limit=1)
-    
-    @api.model
-    def _check_model_no_against_product_code(self, model_no, config, supplier_and_contacts):
+        return unmatched.product_id if unmatched else False
+
+    def _add_to_unmatched_models(self, values, config):
+        UnmatchedModelNo = self.env['unmatched.model.no']
+        model_no = values.get('model_no')
+        existing = UnmatchedModelNo.search([
+            ('config_id', '=', config.id),
+            ('model_no', '=', model_no)
+        ], limit=1)
+
+        if existing:
+            existing.write({
+                'count': existing.count + 1,
+                'raw_data': f"{existing.raw_data}\n{str(values)}"
+            })
+        else:
+            UnmatchedModelNo.create({
+                'config_id': config.id,
+                'supplier_id': config.supplier_id.id,
+                'model_no': model_no,
+                'pn': values.get('pn'),
+                'product_code': values.get('supplier_product_code') or model_no,
+                'raw_data': str(values),
+                'count': 1
+            })
+
+    def _check_model_no_against_product_code(self, model_no, config, supplier_ids):
         domain = [
-            ('seller_ids.partner_id', 'in', supplier_and_contacts.ids),
+            ('seller_ids.name', 'in', supplier_ids),
             '|', '|', '|',
             ('default_code', '=', model_no),
             ('default_code', 'ilike', model_no),
@@ -118,8 +162,27 @@ class IncomingProductInfo(models.Model):
             if len(products) == 1:
                 return products[0]
             else:
-                return None
+                _logger.warning(f"Multiple products found for model_no {model_no}")
         return None
+
+    @api.model
+    def create(self, vals_list):
+        if not isinstance(vals_list, list):
+            vals_list = [vals_list]
+        
+        for vals in vals_list:
+            if 'sn' not in vals or not vals['sn']:
+                raise ValidationError(_("Serial Number (SN) is required and cannot be empty."))
+            if 'model_no' not in vals or not vals['model_no']:
+                raise ValidationError(_("Model Number is required and cannot be empty."))
+            _logger.info(f"Creating incoming product info with values: {vals}")
+        
+        return super(IncomingProductInfo, self).create(vals_list)
+    
+    def write(self, vals):
+        if 'supplier_product_code' in vals and not vals['supplier_product_code']:
+            vals['supplier_product_code'] = self.model_no or ''
+        return super(IncomingProductInfo, self).write(vals)
 
     @api.model
     def _get_combined_code(self, values, config):
@@ -151,18 +214,6 @@ class IncomingProductInfo(models.Model):
                     return combined
     
         return values.get('supplier_product_code')
-
-    @api.model
-    def create(self, vals):
-        if 'sn' not in vals or not vals['sn']:
-            raise ValidationError(_("Serial Number (SN) is required and cannot be empty."))
-        _logger.info(f"Creating incoming product info with values: {vals}")
-        return super(IncomingProductInfo, self).create(vals)
-    
-    def write(self, vals):
-        if 'supplier_product_code' in vals and not vals['supplier_product_code']:
-            vals['supplier_product_code'] = self.model_no or ''
-        return super(IncomingProductInfo, self).write(vals)
     
 class ProductTemplate(models.Model):
     _inherit = 'product.template'

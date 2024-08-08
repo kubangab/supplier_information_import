@@ -1,12 +1,12 @@
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 import base64
 import xlsxwriter
 from io import BytesIO
-from odoo.exceptions import UserError
 
 class StockPicking(models.Model):
     _name = 'stock.picking'
-    _inherit = ['stock.picking', 'product.info.report.mixin']
+    _inherit = ['stock.picking', 'product.selection.mixin']
 
     def action_set_quantities_from_pending(self):
         IncomingProductInfo = self.env['incoming.product.info']
@@ -27,23 +27,32 @@ class StockPicking(models.Model):
                 pending = pending_products.filtered(lambda p: p.product_id.id == move.product_id.id)
                 
                 for p in pending:
-                    move_line = StockMoveLine.create({
-                        'move_id': move.id,
-                        'product_id': p.product_id.id,
-                        'product_uom_id': p.product_id.uom_id.id,
-                        'location_id': move.location_id.id,
-                        'location_dest_id': move.location_dest_id.id,
-                        'picking_id': picking.id,
-                        'lot_name': p.sn,
-                        'qty_done': 1,
-                    })
+                    # Check if there's a matching lot (serial number) for this product
+                    matching_lot = self.env['stock.production.lot'].search([
+                        ('name', '=', p.sn),
+                        ('product_id', '=', p.product_id.id)
+                    ], limit=1)
 
-                    p.write({
-                        'state': 'received',
-                        'stock_picking_id': picking.id
-                    })
-                    
-                    products_added.append(p.product_id.name)
+                    if matching_lot:
+                        move_line = StockMoveLine.create({
+                            'move_id': move.id,
+                            'product_id': p.product_id.id,
+                            'product_uom_id': p.product_id.uom_id.id,
+                            'location_id': move.location_id.id,
+                            'location_dest_id': move.location_dest_id.id,
+                            'picking_id': picking.id,
+                            'lot_id': matching_lot.id,
+                            'qty_done': 1,
+                        })
+
+                        p.write({
+                            'state': 'received',
+                            'stock_picking_id': picking.id
+                        })
+                        
+                        products_added.append(p.product_id.name)
+                    else:
+                        _logger.warning(f"No matching lot found for product {p.product_id.name} with SN {p.sn}")
 
             if products_added:
                 message = _("Added quantities for the following products: %s") % ", ".join(products_added)
@@ -54,7 +63,20 @@ class StockPicking(models.Model):
             picking.action_assign()
 
         return True
-    
+
+    def action_generate_and_send_excel(self):
+        self.ensure_one()
+        if self.state != 'done':
+            raise UserError(_("You can only generate the Excel file for confirmed transfers."))
+
+        # Generate Excel report
+        excel_data = self.generate_excel_report()
+        
+        # Send email with Excel report
+        self.send_excel_report_email(excel_data)
+
+        return {'type': 'ir.actions.act_window_close'}
+
     def generate_excel_report(self):
         output = BytesIO()
         workbook = xlsxwriter.Workbook(output)
@@ -85,7 +107,8 @@ class StockPicking(models.Model):
             product = move_line.product_id
             incoming_info = IncomingProductInfo.search([
                 ('product_id', '=', product.id),
-                ('sn', '=', move_line.lot_id.name)
+                ('sn', '=', move_line.lot_id.name),
+                ('model_no', '=', product.default_code)
             ], limit=1)
 
             col = 0
@@ -120,7 +143,7 @@ class StockPicking(models.Model):
             'res_id': self.id,
         })
 
-        template = self.env.ref('supplier_information_import.email_template_product_info')
+        template = self.env.ref('supplier_information_import.email_template_product_info_delivery')
         template.send_mail(
             self.id,
             force_send=True,
