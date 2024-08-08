@@ -4,15 +4,28 @@
         <field name="name">import.product.info.form</field>
         <field name="model">import.product.info</field>
         <field name="arch" type="xml">
-            <form>
+            <form string="Import Product Information">
+                <field name="state" invisible="1"/>
                 <group>
                     <field name="import_config_id"/>
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
                 </group>
                 <footer>
-                    <button name="import_file" string="Import" type="object" class="btn-primary" context="{'wizard_id': id}"/>
-                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    <button name="import_file" 
+                            string="Import" 
+                            type="object" 
+                            class="btn-primary" 
+                            attrs="{'invisible': [('state', '=', 'done')]}"
+                            context="{'active_id': id}"/>
+                    <button string="Cancel" 
+                            class="btn-secondary" 
+                            special="cancel" 
+                            attrs="{'invisible': [('state', '=', 'done')]}"/>
+                    <button string="Close" 
+                            class="btn-secondary" 
+                            special="cancel" 
+                            attrs="{'invisible': [('state', '!=', 'done')]}"/>
                 </footer>
             </form>
         </field>

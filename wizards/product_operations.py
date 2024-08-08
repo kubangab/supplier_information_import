@@ -15,21 +15,22 @@ class ImportProductInfo(models.TransientModel):
     file = fields.Binary(string='File', required=True)
     file_name = fields.Char(string='File Name')
     import_config_id = fields.Many2one('import.format.config', string='Import Configuration', required=True)
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('done', 'Done')
+    ], default='draft', string='Status')
 
-    @api.model
-    def import_file(self, wizard_id):
-        wizard = self.browse(self.env.context.get('wizard_id'))
-        if not wizard.exists():
-            raise UserError(_('Import wizard not found.'))
+    def import_file(self):
         
-        if not wizard.file:
+        self.ensure_one()
+        if not self.file:
             raise UserError(_('Please select a file to import.'))
         
-        config = wizard.import_config_id
+        config = self.import_config_id
         if not config:
             raise UserError(_('Please select an import configuration.'))
     
-        file_content = base64.b64decode(wizard.file)
+        file_content = base64.b64decode(self.file)
         
         try:
             if config.file_type == 'csv':
@@ -48,6 +49,7 @@ class ImportProductInfo(models.TransientModel):
             to_update = []
             unmatched_models = {}
             errors = []
+            notification_type = 'warning' if errors else 'success'
 
             to_create = []
             for index, row in enumerate(data, start=1):
@@ -120,14 +122,25 @@ class ImportProductInfo(models.TransientModel):
             # Log message
             _logger.log(logging.INFO if log_level == "info" else logging.WARNING, message)
 
+            self.write({'state': 'done'})
+
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
                     'title': _('Import Completed'),
                     'message': message,
-                    'type': 'warning' if errors else 'success',
-                    'sticky': True if errors else False,
+                    'type': notification_type,
+                    'sticky': bool(errors),
+                    'next': {
+                        'type': 'ir.actions.act_window',
+                        'res_model': 'import.product.info',
+                        'view_mode': 'form',
+                        'res_id': self.id,
+                        'target': 'new',
+                        'views': [(False, 'form')],
+                        'context': {'form_view_initial_mode': 'edit'}
+                    }
                 }
             }
     
@@ -218,32 +231,6 @@ class ImportProductInfo(models.TransientModel):
     
         _logger.info(f"Processed values for row: {values}")
         return values
-
-    def _add_to_unmatched_models(self, values, config):
-        UnmatchedModelNo = self.env['unmatched.model.no']
-        model_no = values.get('model_no')
-        existing = UnmatchedModelNo.search([
-            ('config_id', '=', config.id),
-            ('model_no', '=', model_no)
-        ], limit=1)
-
-        if existing:
-            existing.write({
-                'count': existing.count + 1,
-                'raw_data': f"{existing.raw_data}\n{str(values)}"
-            })
-        else:
-            UnmatchedModelNo.create({
-                'config_id': config.id,
-                'supplier_id': config.supplier_id.id,
-                'model_no': model_no,
-                'pn': values.get('pn'),
-                'product_code': values.get('supplier_product_code') or model_no,
-                'raw_data': str(values),
-                'count': 1
-            })
-        _logger.info(f"Added to unmatched models: {model_no}")
-
     
     @api.model
     def process_rows(self, data, config):
