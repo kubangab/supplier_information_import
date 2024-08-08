@@ -39,11 +39,12 @@ class ImportCombinationRule(models.Model):
     def _onchange_config_id(self):
         return {'domain': {'product_id': self._get_product_domain()}}
     
-    @api.model
-    def create(self, vals):
-        if 'product_selection' in vals and vals['product_selection']:
-            vals['product_id'] = vals['product_selection']
-        return super(ImportCombinationRule, self).create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if 'product_selection' in vals and vals['product_selection']:
+                vals['product_id'] = vals['product_selection']
+        return super(ImportCombinationRule, self).create(vals_list)
 
     def write(self, vals):
         if 'product_selection' in vals and vals['product_selection']:

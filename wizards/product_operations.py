@@ -18,7 +18,7 @@ class ImportProductInfo(models.TransientModel):
 
     @api.model
     def import_file(self, wizard_id):
-        wizard = self.browse(wizard_id)
+        wizard = self.browse(self.env.context.get('wizard_id'))
         if not wizard.exists():
             raise UserError(_('Import wizard not found.'))
         

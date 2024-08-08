@@ -165,20 +165,19 @@ class IncomingProductInfo(models.Model):
                 _logger.warning(f"Multiple products found for model_no {model_no}")
         return None
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
         if not isinstance(vals_list, list):
             vals_list = [vals_list]
-        
+            
         for vals in vals_list:
             if 'sn' not in vals or not vals['sn']:
                 raise ValidationError(_("Serial Number (SN) is required and cannot be empty."))
             if 'model_no' not in vals or not vals['model_no']:
                 raise ValidationError(_("Model Number is required and cannot be empty."))
             _logger.info(f"Creating incoming product info with values: {vals}")
-        
         return super(IncomingProductInfo, self).create(vals_list)
-    
+
     def write(self, vals):
         if 'supplier_product_code' in vals and not vals['supplier_product_code']:
             vals['supplier_product_code'] = self.model_no or ''
