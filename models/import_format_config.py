@@ -2,8 +2,11 @@ import base64
 import csv
 import io
 import xlrd
+import logging
 from odoo.exceptions import UserError
 from odoo import models, fields, api, _
+
+_logger = logging.getLogger(__name__)
 
 class ImportFormatConfig(models.Model):
     _name = 'import.format.config'
@@ -23,6 +26,7 @@ class ImportFormatConfig(models.Model):
     product_code = fields.Char(string='Product Code')
     previous_mappings = fields.Text(string='Previous Mappings')
     unmatched_model_ids = fields.One2many('unmatched.model.no', 'config_id', string='Unmatched Model Numbers')
+    first_save = fields.Boolean(default=True, string="Is First Save")
 
     @api.model
     def get_incoming_product_info_fields(self):
@@ -97,6 +101,8 @@ class ImportFormatConfig(models.Model):
             return 'dev_eui'
         if column_lower in ['appeui', 'app_eui']:
             return 'app_eui'
+        if column_lower in ['wifissid', 'wifi_ssid']:
+            return 'wifi_ssid'
         
         for field in self.env['incoming.product.info']._fields:
             if column_lower in field or field in column_lower:
@@ -111,22 +117,44 @@ class ImportFormatConfig(models.Model):
     
     @api.model_create_multi
     def create(self, vals_list):
+        _logger.info(f"Create method called with vals_list: {vals_list}")
         records = super(ImportFormatConfig, self).create(vals_list)
         for record in records:
-            if record.sample_file:
-                record._process_sample_file()
-            self._ensure_required_mappings(record)
+            _logger.info(f"Created record with ID: {record.id}")
+            if record.first_save:
+                if record.sample_file:
+                    _logger.info(f"Create: Processing sample file for record: {record.id}")
+                    record._process_sample_file()
+                _logger.info(f"Checking required mappings for first save on record: {record.id}")
+                record._check_required_mappings()  # Kontrollera mappningar även vid första sparning
+            else:
+                _logger.info(f"Ensuring required mappings for non-first save on record: {record.id}")
+                record._ensure_required_mappings(record)
+                record._check_required_mappings()
         return records
-
+    
     def write(self, vals):
+        _logger.info(f"Write called for record {self.id}. Current first_save value: {self.first_save}")
         res = super(ImportFormatConfig, self).write(vals)
-        if 'sample_file' in vals:
-            self._process_sample_file()
-        self._ensure_required_mappings(self)
+        if self.first_save:
+            _logger.info(f"Write: Processing for first save on record: {self.id}")
+            if 'sample_file' in vals:
+                _logger.info(f"Processing sample file for record: {self.id}")
+                self._process_sample_file()
+            self.first_save = False
+            _logger.info(f"Set first_save to False for record: {self.id}")
+        else:
+            _logger.info(f"Ensuring required mappings for non-first save on record: {self.id}")
+            self._ensure_required_mappings(self)
+        
+        _logger.info(f"Checking required mappings for record: {self.id}")
+        self._check_required_mappings()  # Explicit anrop här
         return res
-
+    
     def _ensure_required_mappings(self, configs):
         for config in configs:
+            if config.first_save:
+                continue
             required_fields = ['sn', 'model_no']
             existing_mappings = config.column_mapping.filtered(lambda m: m.destination_field_name in required_fields)
             
@@ -137,19 +165,20 @@ class ImportFormatConfig(models.Model):
                         'config_id': config.id,
                         'source_column': field.upper(),
                         'destination_field_name': field,
-                        'is_required': True,
+                        'custom_label': field.upper(),
                     })
-                else:
-                    mapping.write({'is_required': True})
 
     @api.constrains('column_mapping')
     def _check_required_mappings(self):
         for config in self:
+            if config.first_save:
+                _logger.info(f"Skipping required mappings check for first save on record: {config.id}")
+                continue
             required_fields = ['sn', 'model_no']
             existing_mappings = config.column_mapping.mapped('destination_field_name')
             missing_fields = set(required_fields) - set(existing_mappings)
             if missing_fields:
-                raise ValidationError(_("The following required fields are missing from the mapping: %s") % ', '.join(missing_fields))
+                raise UserError(_("The following required fields are missing from the mapping: %s") % ', '.join(missing_fields))
     
     @api.depends('supplier_id')
     def _compute_supplier_name(self):
@@ -160,6 +189,7 @@ class ImportFormatConfig(models.Model):
                 record.supplier_name = record.supplier_id.name
 
     def _process_sample_file(self):
+        _logger.info(f"_process_sample_file called for record: {self.id}")
         self.ensure_one()
         if not self.sample_file:
             return
@@ -176,8 +206,8 @@ class ImportFormatConfig(models.Model):
         existing_fields = self.env['incoming.product.info'].fields_get().keys()
         ImportColumnMapping = self.env['import.column.mapping']
     
-        existing_mappings = ImportColumnMapping.search([('config_id', '=', self.id)])
-        existing_mappings.unlink()
+        # Ta bort befintliga mappningar
+        self.column_mapping.unlink()
     
         for column in columns:
             if not column.strip():
@@ -188,7 +218,6 @@ class ImportFormatConfig(models.Model):
                 'config_id': self.id,
                 'source_column': column,
                 'destination_field_name': matching_field if matching_field in existing_fields else 'custom',
-                'custom_field_name': ImportColumnMapping._generate_custom_field_name(column) if matching_field not in existing_fields else False,
                 'custom_label': column or _('Unnamed Column'),
             }
             ImportColumnMapping.create(mapping_vals)

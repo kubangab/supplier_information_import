@@ -19,6 +19,11 @@ class ImportColumnMapping(models.Model):
     is_readonly = fields.Boolean(string='Is Readonly', compute='_compute_is_readonly')
 
     @api.depends('destination_field_name')
+    def _compute_is_custom_field(self):
+        for record in self:
+            record.is_custom_field = record.destination_field_name == 'custom'
+
+    @api.depends('destination_field_name')
     def _compute_is_required(self):
         for record in self:
             record.is_required = record.destination_field_name in ['sn', 'model_no']
