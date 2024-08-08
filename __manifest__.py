@@ -1,7 +1,7 @@
 #  © opyright 2024 Lasse Larsson, Kubang AB
 {
     'name': 'Supplier Information Import',
-    'version': '16.0.5.3.0',
+    'version': '17.0.1.0.0',
     'category': 'Inventory',
     'summary': 'Import and manage incoming product information',
     'description': """
