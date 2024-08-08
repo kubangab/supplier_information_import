@@ -109,7 +109,7 @@ class ImportFormatConfig(models.Model):
         
         return False
     
-    @api.model_create_multi
+    @api.model
     def create(self, vals_list):
         records = super(ImportFormatConfig, self).create(vals_list)
         for record in records:

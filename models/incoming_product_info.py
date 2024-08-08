@@ -165,7 +165,7 @@ class IncomingProductInfo(models.Model):
                 _logger.warning(f"Multiple products found for model_no {model_no}")
         return None
 
-    @api.model_create_multi
+    @api.model
     def create(self, vals_list):
         if not isinstance(vals_list, list):
             vals_list = [vals_list]

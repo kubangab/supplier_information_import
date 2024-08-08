@@ -52,7 +52,7 @@ class ImportColumnMapping(models.Model):
             counter += 1
         return unique_label
     
-    @api.model_create_multi
+    @api.model
     def create(self, vals_list):
         for vals in vals_list:
             if not vals.get('custom_label'):

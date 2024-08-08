@@ -39,7 +39,7 @@ class ImportCombinationRule(models.Model):
     def _onchange_config_id(self):
         return {'domain': {'product_id': self._get_product_domain()}}
     
-    @api.model_create_multi
+    @api.model
     def create(self, vals_list):
         for vals in vals_list:
             if 'product_selection' in vals and vals['product_selection']:
