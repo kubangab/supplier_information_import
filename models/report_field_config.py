@@ -8,8 +8,14 @@ class ReportFieldConfig(models.Model):
     config_id = fields.Many2one('import.format.config', string='Import Configuration', ondelete='cascade')
     field_id = fields.Many2one('ir.model.fields', string='Field', required=True, ondelete='cascade',
                                domain="[('id', 'in', parent.available_field_ids)]")
+    field_name = fields.Char(string='Field Name', compute='_compute_field_name', store=True)
     name = fields.Char(string='Display Name', required=True, translate=True)
     sequence = fields.Integer(string='Sequence', default=10)
+
+    @api.depends('field_id')
+    def _compute_field_name(self):
+        for record in self:
+            record.field_name = record.field_id.field_description if record.field_id else ''
 
     @api.onchange('field_id')
     def _onchange_field_id(self):
