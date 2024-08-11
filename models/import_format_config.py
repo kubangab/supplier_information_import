@@ -28,6 +28,48 @@ class ImportFormatConfig(models.Model):
     unmatched_model_ids = fields.One2many('unmatched.model.no', 'config_id', string='Unmatched Model Numbers')
     first_save = fields.Boolean(default=True, string="Is First Save")
 
+    # New fields for report configuration
+    report_worksheet_name = fields.Char(string='Report Worksheet Name', default='Product Info', translate=False)
+    report_field_ids = fields.One2many('report.field.config', 'config_id', string='Report Fields')
+    available_field_ids = fields.Many2many('ir.model.fields', compute='_compute_available_field_ids')
+
+    @api.depends('column_mapping')
+    def _compute_available_field_ids(self):
+        for record in self:
+            allowed_models = ['product.product', 'sale.order.line', 'stock.move.line', 'incoming.product.info']
+            allowed_fields = ['default_code', 'name', 'product_uom_qty', 'lot_id']
+            allowed_fields += record.column_mapping.mapped('destination_field_name')
+
+            record.available_field_ids = self.env['ir.model.fields'].search([
+                '|',
+                '&', ('model', 'in', allowed_models), ('name', 'in', allowed_fields),
+                ('model', '=', 'incoming.product.info')
+            ])
+
+    def get_available_fields(self):
+        self.ensure_one()
+        IrModelFields = self.env['ir.model.fields']
+        allowed_models = ['product.product', 'sale.order.line', 'stock.move.line', 'incoming.product.info']
+        allowed_fields = ['default_code', 'product_id', 'product_uom_qty', 'lot_id']
+        allowed_fields += self.column_mapping.mapped('destination_field_name')
+
+        return IrModelFields.search([
+            ('model', 'in', allowed_models),
+            ('name', 'in', allowed_fields)
+        ]).ids
+
+    def _get_available_field_ids(self):
+        self.ensure_one()
+        IrModelFields = self.env['ir.model.fields']
+        allowed_models = ['product.product', 'sale.order.line', 'stock.move.line', 'incoming.product.info']
+        allowed_fields = ['default_code', 'product_id', 'product_uom_qty', 'lot_id']
+        allowed_fields += self.column_mapping.mapped('destination_field_name')
+
+        return IrModelFields.search([
+            ('model', 'in', allowed_models),
+            ('name', 'in', allowed_fields)
+        ]).ids
+
     @api.model
     def get_incoming_product_info_fields(self):
         return [(field, self.env['incoming.product.info']._fields[field].string) 
@@ -116,6 +158,7 @@ class ImportFormatConfig(models.Model):
         return False
     
     @api.model_create_multi
+    @api.model_create_multi
     def create(self, vals_list):
         _logger.info(f"Create method called with vals_list: {vals_list}")
         records = super(ImportFormatConfig, self).create(vals_list)
@@ -126,13 +169,18 @@ class ImportFormatConfig(models.Model):
                     _logger.info(f"Create: Processing sample file for record: {record.id}")
                     record._process_sample_file()
                 _logger.info(f"Checking required mappings for first save on record: {record.id}")
-                record._check_required_mappings()  # Kontrollera mappningar även vid första sparning
+                record._check_required_mappings()
+                record._create_default_report_fields()
             else:
                 _logger.info(f"Ensuring required mappings for non-first save on record: {record.id}")
                 record._ensure_required_mappings(record)
                 record._check_required_mappings()
+            
+            # Add new fields from column mapping to report fields
+            record._update_report_fields_from_mapping()
+        
         return records
-    
+
     def write(self, vals):
         _logger.info(f"Write called for record {self.id}. Current first_save value: {self.first_save}")
         res = super(ImportFormatConfig, self).write(vals)
@@ -226,3 +274,74 @@ class ImportFormatConfig(models.Model):
     def _compute_actual_supplier(self):
         for record in self:
             record.actual_supplier = record.supplier_id.parent_id or record.supplier_id
+
+    def _update_report_fields_from_mapping(self):
+        ReportFieldConfig = self.env['report.field.config']
+        existing_field_names = self.report_field_ids.mapped('field_id.name')
+        
+        for mapping in self.column_mapping:
+            if mapping.destination_field_name != 'custom' and mapping.destination_field_name not in existing_field_names:
+                field = self.env['ir.model.fields'].search([
+                    ('model', '=', 'incoming.product.info'),
+                    ('name', '=', mapping.destination_field_name),
+                ], limit=1)
+                if field:
+                    ReportFieldConfig.create({
+                        'config_id': self.id,
+                        'field_id': field.id,
+                        'name': mapping.custom_label or field.field_description,
+                        'sequence': len(self.report_field_ids) * 10,
+                    })
+    
+    def _create_default_report_fields(self):
+        ReportFieldConfig = self.env['report.field.config']
+        default_fields = [
+            ('product.product', 'default_code', 'SKU'),
+            ('sale.order.line', 'name', 'Product'),
+            ('sale.order.line', 'product_uom_qty', 'Quantity'),
+            ('stock.move.line', 'lot_id', 'Serial Number'),
+        ]
+        
+        for model, field_name, display_name in default_fields:
+            field = self.env['ir.model.fields'].search([
+                ('model', '=', model),
+                ('name', '=', field_name),
+            ], limit=1)
+            if field and field.name not in self.report_field_ids.mapped('field_id.name'):
+                ReportFieldConfig.create({
+                    'config_id': self.id,
+                    'field_id': field.id,
+                    'name': display_name,
+                    'sequence': len(self.report_field_ids) * 10,
+                })
+        
+        self._update_report_fields_from_mapping()
+
+    def _get_model_for_field_type(self, field_type):
+        
+        if field_type == 'sale_order':
+            return 'sale.order.line'
+        elif field_type == 'stock_picking':
+            return 'stock.move.line'
+        elif field_type == 'incoming_info':
+            return 'incoming.product.info'
+
+    @api.model
+    def _get_report_field_domain(self): 
+        return self.env['report.field.config']._get_field_domain()
+
+class ReportFieldConfig(models.Model):
+    _name = 'report.field.config'
+    _description = 'Report Field Configuration'
+    _order = 'sequence, id'
+
+    config_id = fields.Many2one('import.format.config', string='Import Configuration', ondelete='cascade')
+    field_id = fields.Many2one('ir.model.fields', string='Field', required=True, ondelete='cascade',
+                               domain="[('id', 'in', parent.available_field_ids)]")
+    name = fields.Char(string='Display Name', required=True, translate=False)
+    sequence = fields.Integer(string='Sequence', default=10)
+
+    @api.onchange('field_id')
+    def _onchange_field_id(self):
+        if self.field_id:
+            self.name = self.field_id.field_description

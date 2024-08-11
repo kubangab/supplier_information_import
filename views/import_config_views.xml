@@ -52,6 +52,19 @@
                                 </tree>
                             </field>
                         </page>
+                        <page string="Report Configuration">
+                            <group>
+                                <field name="report_worksheet_name"/>
+                            </group>
+                            <field name="report_field_ids">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="field_id" options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="name" widget="char_translatable"/>
+                                </tree>
+                            </field>
+                            <field name="available_field_ids" invisible="1"/>
+                        </page>
                     </notebook>
                 </sheet>
             </form>

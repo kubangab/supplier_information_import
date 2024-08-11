@@ -7,3 +7,7 @@ access_receive_products_wizard_user,receive.products.wizard.user,model_receive_p
 access_import_combination_rule_user,import.combination.rule.user,model_import_combination_rule,base.group_user,1,1,1,1
 access_file_analysis_wizard_user,file.analysis.wizard.user,model_file_analysis_wizard,base.group_user,1,1,1,1
 access_unmatched_model_no,access.unmatched.model.no,model_unmatched_model_no,base.group_user,1,1,1,1
+access_product_info_report_config_user,product.info.report.config user,model_product_info_report_config,base.group_user,1,0,0,0
+access_product_info_report_config_manager,product.info.report.config manager,model_product_info_report_config,stock.group_stock_manager,1,1,1,1
+access_report_field_config_user,report.field.config user,model_report_field_config,base.group_user,1,0,0,0
+access_report_field_config_manager,report.field.config manager,model_report_field_config,stock.group_stock_manager,1,1,1,1
