@@ -36,13 +36,23 @@ class IncomingProductInfo(models.Model):
 
     @api.depends('supplier_product_code', 'sn')
     def _compute_name(self):
+        """
+        Compute the name of the incoming product info based on supplier product code and serial number.
+        """
         for record in self:
             record.name = f"{record.supplier_product_code or ''} - {record.sn or ''}"
 
     @api.model
-    def _search_product(self, values, config):
+    def _search_product(self, values_list, config):
+        """
+        Search for a product based on the provided values and configuration.
+    
+        :param values: A dictionary containing the product information
+        :param config: The import configuration record
+        :return: The found product record or False if not found
+        """
         try:
-            _logger.info(f"Starting _search_product with values: {values}")
+            _logger.info(f"Starting _search_product with {len(values_list)} values")
             supplier = config.supplier_id
             main_supplier = supplier.parent_id or supplier
             supplier_domain = [
@@ -53,47 +63,48 @@ class IncomingProductInfo(models.Model):
             ]
             supplier_and_contacts = self.env['res.partner'].search(supplier_domain)
             _logger.info(f"Supplier and contacts: {supplier_and_contacts.mapped('name')}")
-
-            model_no = values.get('model_no')
-            supplier_product_code = values.get('supplier_product_code') or model_no
-
-            # 1. Check Combination Rules
-            rule_product = self._check_combination_rules(values, config, supplier_and_contacts)
-            if rule_product:
-                _logger.info(f"Product found via Combination Rules: {rule_product.name}")
-                return rule_product
-
-            # 2. Check Unmatched Model No
-            unmatched_product = self._check_unmatched_model(model_no, config, supplier_and_contacts)
-            if unmatched_product:
-                _logger.info(f"Product found via Unmatched Model No: {unmatched_product.name}")
-                return unmatched_product
-
-            # 3. Check against supplier product code
-            domain = [
-                ('seller_ids.product_code', '=', supplier_product_code),
-                ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
+    
+            # Prepare data for batch processing
+            all_model_nos = set()
+            all_product_codes = set()
+            for values in values_list:
+                all_model_nos.add(values.get('model_no'))
+                all_product_codes.add(values.get('supplier_product_code') or values.get('model_no'))
+    
+            # Search for products
+            domain = ['|', 
+                ('default_code', 'in', list(all_model_nos)),
+                '&', ('seller_ids.product_code', 'in', list(all_product_codes)),
+                    ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
             ]
-            
-            _logger.info(f"Search domain: {domain}")
             products = self.env['product.product'].search(domain)
-            _logger.info(f"Found {len(products)} products")
-
-            if len(products) == 1:
-                _logger.info(f"Single product found: {products.name}")
-                return products
-            elif len(products) > 1:
-                _logger.warning(f"Multiple products found for supplier_product_code {supplier_product_code}. Adding to Unmatched Model No.")
-                self._add_to_unmatched_models(values, config)
-                return False
-
-            _logger.info(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
-            self._add_to_unmatched_models(values, config)
-            return False
-        
+    
+            # Create a dictionary for quick lookup
+            product_dict = {}
+            for product in products:
+                product_dict[product.default_code] = product
+                for seller in product.seller_ids.filtered(lambda s: s.partner_id in supplier_and_contacts):
+                    product_dict[seller.product_code] = product
+    
+            # Match products to values
+            results = []
+            for values in values_list:
+                model_no = values.get('model_no')
+                supplier_product_code = values.get('supplier_product_code') or model_no
+                
+                product = product_dict.get(supplier_product_code) or product_dict.get(model_no)
+                
+                if not product:
+                    _logger.warning(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
+                
+                results.append(product)
+    
+            _logger.info(f"_search_product completed. Found {len([r for r in results if r])} matches out of {len(values_list)} values")
+            return results
+    
         except Exception as e:
             _logger.error(f"Error in _search_product: {str(e)}", exc_info=True)
-            return False
+            return [False] * len(values_list)
 
     def _check_combination_rules(self, values, config, supplier_and_contacts):
         for rule in config.combination_rule_ids:
@@ -167,6 +178,13 @@ class IncomingProductInfo(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """
+        Create new incoming product info records.
+
+        :param vals_list: A list of dictionaries containing the values for new records
+        :return: The created records
+        :raises ValidationError: If required fields are missing
+        """
         if not isinstance(vals_list, list):
             vals_list = [vals_list]
             
@@ -179,6 +197,12 @@ class IncomingProductInfo(models.Model):
         return super(IncomingProductInfo, self).create(vals_list)
 
     def write(self, vals):
+        """
+        Update existing incoming product info records.
+
+        :param vals: A dictionary containing the values to update
+        :return: True
+        """
         if 'supplier_product_code' in vals and not vals['supplier_product_code']:
             vals['supplier_product_code'] = self.model_no or ''
         return super(IncomingProductInfo, self).write(vals)

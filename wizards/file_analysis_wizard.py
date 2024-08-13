@@ -4,6 +4,7 @@ import io
 import xlrd
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+from ..models.utils import process_csv, process_excel
 
 class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
@@ -47,9 +48,9 @@ class FileAnalysisWizard(models.TransientModel):
         
         try:
             if self.file_type == 'csv':
-                data = self._process_csv(file_content)
+                data = process_csv(file_content)
             elif self.file_type == 'excel':
-                data = self._process_excel(file_content)
+                data = process_excel(file_content)
             else:
                 raise UserError(_("Unsupported file format."))
     
@@ -67,7 +68,7 @@ class FileAnalysisWizard(models.TransientModel):
             return self._reopen_view()
     
         except Exception as e:
-            self.write({'state': 'warning', 'warning_message': _(f"Error during file analysis: {str(e)}")})
+            log_and_notify(self.env, _("Error during file analysis: %s") % str(e), error_type="warning")
             return self._reopen_view()
 
     def _reopen_view(self):
@@ -80,28 +81,6 @@ class FileAnalysisWizard(models.TransientModel):
             'target': 'new',
             'context': {'form_view_initial_mode': 'edit'},
         }
-
-    def _process_csv(self, file_content):
-        csv_data = io.StringIO(file_content.decode('utf-8'))
-        reader = csv.DictReader(csv_data, delimiter=';')
-        return list(reader)
-    
-    def _process_excel(self, file_content):
-        workbook = xlrd.open_workbook(file_contents=file_content)
-        sheet = workbook.sheet_by_index(0)
-        headers = [str(cell.value).strip() for cell in sheet.row(0)]
-        
-        data = []
-        for i in range(1, sheet.nrows):
-            row_data = {}
-            for col, header in enumerate(headers):
-                cell_value = sheet.cell_value(i, col)
-                if isinstance(cell_value, float) and cell_value.is_integer():
-                    cell_value = int(cell_value)
-                row_data[header] = str(cell_value).strip()
-            data.append(row_data)
-        
-        return data
 
     def _analyze_data(self, data):
         field1, field2 = self.field_ids

@@ -5,6 +5,7 @@ import xlrd
 import logging
 from odoo.exceptions import UserError
 from odoo import models, fields, api, _
+from .utils import process_csv, process_excel, log_and_notify
 
 _logger = logging.getLogger(__name__)
 
@@ -84,24 +85,14 @@ class ImportFormatConfig(models.Model):
         file_content = base64.b64decode(self.sample_file)
         
         if self.file_type == 'csv':
-            columns = self._read_csv_columns(file_content)
+            columns = process_csv(file_content)
         elif self.file_type == 'excel':
-            columns = self._read_excel_columns(file_content)
+            columns = process_excel(file_content)
         else:
             return {'warning': {'title': _('Error'), 'message': _('Unsupported file type.')}}
         
         self.temp_column_names = ','.join(columns)
         return True
-    
-    def _read_csv_columns(self, file_content):
-        csv_data = io.StringIO(file_content.decode('utf-8', errors='replace'))
-        reader = csv.reader(csv_data)
-        return next(reader, [])
-
-    def _read_excel_columns(self, file_content):
-        workbook = xlrd.open_workbook(file_contents=file_content)
-        sheet = workbook.sheet_by_index(0)
-        return [sheet.cell_value(0, col) for col in range(sheet.ncols)]
 
     @api.constrains('column_mapping')
     def _check_column_mapping(self):
@@ -157,7 +148,6 @@ class ImportFormatConfig(models.Model):
         
         return False
     
-    @api.model_create_multi
     @api.model_create_multi
     def create(self, vals_list):
         _logger.info(f"Create method called with vals_list: {vals_list}")
@@ -244,31 +234,35 @@ class ImportFormatConfig(models.Model):
     
         file_content = base64.b64decode(self.sample_file)
         
-        if self.file_type == 'csv':
-            columns = self._read_csv_columns(file_content)
-        elif self.file_type == 'excel':
-            columns = self._read_excel_columns(file_content)
-        else:
-            raise UserError(_('Unsupported file type.'))
+        try:
+            if self.file_type == 'csv':
+                columns = process_csv(file_content)[0].keys()
+            elif self.file_type == 'excel':
+                columns = process_excel(file_content)[0].keys()
+            else:
+                raise UserError(_('Unsupported file format.'))
     
-        existing_fields = self.env['incoming.product.info'].fields_get().keys()
-        ImportColumnMapping = self.env['import.column.mapping']
+            existing_fields = self.env['incoming.product.info'].fields_get().keys()
+            ImportColumnMapping = self.env['import.column.mapping']
     
-        # Ta bort befintliga mappningar
-        self.column_mapping.unlink()
+            # Ta bort befintliga mappningar
+            self.column_mapping.unlink()
     
-        for column in columns:
-            if not column.strip():
-                continue
-            
-            matching_field = self._find_matching_field(column)
-            mapping_vals = {
-                'config_id': self.id,
-                'source_column': column,
-                'destination_field_name': matching_field if matching_field in existing_fields else 'custom',
-                'custom_label': column or _('Unnamed Column'),
-            }
-            ImportColumnMapping.create(mapping_vals)
+            for column in columns:
+                if not column.strip():
+                    continue
+                
+                matching_field = self._find_matching_field(column)
+                mapping_vals = {
+                    'config_id': self.id,
+                    'source_column': column,
+                    'destination_field_name': matching_field if matching_field in existing_fields else 'custom',
+                    'custom_label': column or _('Unnamed Column'),
+                }
+                ImportColumnMapping.create(mapping_vals)
+        
+        except Exception as e:
+            log_and_notify(self.env, _("Error processing sample file: %s") % str(e), error_type="error")
     
     @api.depends('supplier_id')
     def _compute_actual_supplier(self):
