@@ -20,10 +20,13 @@ def process_csv(file_content, chunk_size=1000):
         csv_data = io.StringIO(file_content.decode('utf-8'))
         reader = csv.DictReader(csv_data, delimiter=';')
         
-        while True:
-            chunk = list(itertools.islice(reader, chunk_size))
-            if not chunk:
-                break
+        chunk = []
+        for row in reader:
+            chunk.append(row)
+            if len(chunk) == chunk_size:
+                yield chunk
+                chunk = []
+        if chunk:
             yield chunk
 
     except Exception as e:
@@ -42,16 +45,19 @@ def process_excel(file_content, chunk_size=1000):
         sheet = workbook.sheet_by_index(0)
         headers = [str(cell.value).strip() for cell in sheet.row(0)]
         
-        for i in range(1, sheet.nrows, chunk_size):
-            chunk = []
-            for row_index in range(i, min(i+chunk_size, sheet.nrows)):
-                row_data = {}
-                for col, header in enumerate(headers):
-                    cell_value = sheet.cell_value(row_index, col)
-                    if isinstance(cell_value, float) and cell_value.is_integer():
-                        cell_value = int(cell_value)
-                    row_data[header] = str(cell_value).strip()
-                chunk.append(row_data)
+        chunk = []
+        for row_index in range(1, sheet.nrows):
+            row_data = {}
+            for col, header in enumerate(headers):
+                cell_value = sheet.cell_value(row_index, col)
+                if isinstance(cell_value, float) and cell_value.is_integer():
+                    cell_value = int(cell_value)
+                row_data[header] = str(cell_value).strip()
+            chunk.append(row_data)
+            if len(chunk) == chunk_size:
+                yield chunk
+                chunk = []
+        if chunk:
             yield chunk
 
     except Exception as e:

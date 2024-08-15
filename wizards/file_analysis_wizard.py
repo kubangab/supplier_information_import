@@ -4,7 +4,7 @@ import io
 import xlrd
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-from ..models.utils import process_csv, process_excel
+from ..models.utils import process_csv, process_excel, log_and_notify
 
 class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
@@ -22,11 +22,11 @@ class FileAnalysisWizard(models.TransientModel):
     warning_message = fields.Char(string='Warning Message')
     product_code = fields.Char(string='Product Code')
     filtered_combinations = fields.Text(string='Filtered Combinations')
-
+    
     @api.depends('import_config_id.column_mapping')
     def _compute_field_names(self):
         for record in self:
-            field_names = [field.custom_label or field.source_column for field in record.import_config_id.column_mapping]
+            field_names = record.import_config_id.column_mapping.mapped('custom_label')
             record.field_names = ', '.join(field_names)
 
     @api.onchange('import_config_id')
@@ -68,7 +68,7 @@ class FileAnalysisWizard(models.TransientModel):
             return self._reopen_view()
     
         except Exception as e:
-            log_and_notify(self.env, _("Error during file analysis: %s") % str(e), error_type="warning")
+            self.write({'state': 'warning', 'warning_message': _(f"Error during file analysis: {str(e)}")})
             return self._reopen_view()
 
     def _reopen_view(self):
@@ -86,33 +86,36 @@ class FileAnalysisWizard(models.TransientModel):
         field1, field2 = self.field_ids
         field1_name = field1.source_column
         field2_name = field2.source_column
-
+        field1_label = field1.custom_label or field1.source_column
+        field2_label = field2.custom_label or field2.source_column
+    
         existing_rules = self.env['import.combination.rule'].search([
             ('config_id', '=', self.import_config_id.id)
         ])
         existing_combinations = {(rule.value_1, rule.value_2) for rule in existing_rules}
-
+    
         new_combinations = {}
-        for row in data:
-            val1 = row.get(field1_name, '').strip()
-            val2 = row.get(field2_name, '').strip()
-            
-            if not val1 or not val2:
-                continue
-            
-            key = (val1, val2)
-            if key not in existing_combinations:
-                new_combinations[key] = new_combinations.get(key, 0) + 1
-
+        for chunk in data:
+            for row in chunk:
+                val1 = row.get(field1_name, '').strip()
+                val2 = row.get(field2_name, '').strip()
+                
+                if not val1 or not val2:
+                    continue
+                
+                key = (val1, val2)
+                if key not in existing_combinations:
+                    new_combinations[key] = new_combinations.get(key, 0) + 1
+    
         filtered_combinations = {k: v for k, v in new_combinations.items() 
-                                 if len([c for c in new_combinations if c[0] == k[0]]) > 1}
-
+                                if len([c for c in new_combinations if c[0] == k[0]]) > 1}
+    
         sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
-
-        result = [f"Analysis of {field1_name} and {field2_name} (New Combinations):"]
+    
+        result = [f"Analysis of {field1_label} and {field2_label} (New Combinations):"]
         for (val1, val2), count in sorted_combinations:
-            result.append(f"{field1_name}: {val1}, {field2_name}: {val2} - Count: {count}")
-
+            result.append(f"{field1_label}: {val1}, {field2_label}: {val2} - Count: {count}")
+    
         return "\n".join(result), dict(sorted_combinations)
 
     def action_create_combination_rules(self):
@@ -145,9 +148,3 @@ class FileAnalysisWizard(models.TransientModel):
             'domain': [('config_id', '=', self.import_config_id.id)],
             'context': {'default_config_id': self.import_config_id.id},
         }
-
-class ImportColumnMapping(models.Model):
-    _inherit = 'import.column.mapping'
-
-    def name_get(self):
-        return [(record.id, record.custom_label or record.source_column) for record in self]

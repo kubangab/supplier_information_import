@@ -1,7 +1,4 @@
 import base64
-import csv
-import io
-import xlrd
 import logging
 from odoo.exceptions import UserError
 from odoo import models, fields, api, _
@@ -14,7 +11,7 @@ class ImportFormatConfig(models.Model):
     _description = 'Import Format Configuration'
 
     name = fields.Char(string='Configuration Name', required=True)
-    combination_rule_ids = fields.One2many('import.combination.rule', 'config_id', string='Combination Rules')
+    available_field_ids = fields.Many2many('ir.model.fields', compute='_compute_available_field_ids')
     file_type = fields.Selection([
         ('csv', 'CSV'),
         ('excel', 'Excel')
@@ -32,7 +29,7 @@ class ImportFormatConfig(models.Model):
     # New fields for report configuration
     report_worksheet_name = fields.Char(string='Report Worksheet Name', default='Product Info', translate=False)
     report_field_ids = fields.One2many('report.field.config', 'config_id', string='Report Fields')
-    available_field_ids = fields.Many2many('ir.model.fields', compute='_compute_available_field_ids')
+    combination_rule_ids = fields.One2many('import.combination.rule', 'config_id', string='Combination Rules')
 
     @api.depends('column_mapping')
     def _compute_available_field_ids(self):
@@ -43,7 +40,8 @@ class ImportFormatConfig(models.Model):
 
             record.available_field_ids = self.env['ir.model.fields'].search([
                 '|',
-                '&', ('model', 'in', allowed_models), ('name', 'in', allowed_fields),
+                '&', ('model', 'in', allowed_models),
+                ('name', 'in', allowed_fields),
                 ('model', '=', 'incoming.product.info')
             ])
 
@@ -236,19 +234,26 @@ class ImportFormatConfig(models.Model):
         
         try:
             if self.file_type == 'csv':
-                columns = process_csv(file_content)[0].keys()
+                data_generator = process_csv(file_content)
             elif self.file_type == 'excel':
-                columns = process_excel(file_content)[0].keys()
+                data_generator = process_excel(file_content)
             else:
                 raise UserError(_('Unsupported file format.'))
     
-            existing_fields = self.env['incoming.product.info'].fields_get().keys()
+            # Get the first chunk of data
+            columns = next(data_generator, [])
+            if not columns:
+                raise UserError(_('No data found in the file.'))
+    
+            # Use the keys of the first row as column names
+            column_names = list(columns[0].keys()) if columns else []
+    
             ImportColumnMapping = self.env['import.column.mapping']
     
-            # Ta bort befintliga mappningar
+            # Take bort befintliga mappningar
             self.column_mapping.unlink()
     
-            for column in columns:
+            for column in column_names:
                 if not column.strip():
                     continue
                 
@@ -256,11 +261,11 @@ class ImportFormatConfig(models.Model):
                 mapping_vals = {
                     'config_id': self.id,
                     'source_column': column,
-                    'destination_field_name': matching_field if matching_field in existing_fields else 'custom',
+                    'destination_field_name': matching_field if matching_field in self.env['incoming.product.info'].fields_get() else 'custom',
                     'custom_label': column or _('Unnamed Column'),
                 }
                 ImportColumnMapping.create(mapping_vals)
-        
+    
         except Exception as e:
             log_and_notify(self.env, _("Error processing sample file: %s") % str(e), error_type="error")
     
@@ -322,20 +327,9 @@ class ImportFormatConfig(models.Model):
 
     @api.model
     def _get_report_field_domain(self): 
-        return self.env['report.field.config']._get_field_domain()
-
-class ReportFieldConfig(models.Model):
-    _name = 'report.field.config'
-    _description = 'Report Field Configuration'
-    _order = 'sequence, id'
-
-    config_id = fields.Many2one('import.format.config', string='Import Configuration', ondelete='cascade')
-    field_id = fields.Many2one('ir.model.fields', string='Field', required=True, ondelete='cascade',
-                               domain="[('id', 'in', parent.available_field_ids)]")
-    name = fields.Char(string='Display Name', required=True, translate=False)
-    sequence = fields.Integer(string='Sequence', default=10)
-
-    @api.onchange('field_id')
-    def _onchange_field_id(self):
-        if self.field_id:
-            self.name = self.field_id.field_description
+        config_id = self._context.get('config_id')
+        if not config_id:
+            return []
+        
+        config = self.browse(config_id)
+        return [('id', 'in', config.available_field_ids.ids)]
