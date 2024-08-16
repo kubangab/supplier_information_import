@@ -63,37 +63,12 @@ class StockPicking(models.Model):
         return True
 
     def action_generate_and_send_excel(self):
-        self.ensure_one()
-        if self.state != 'done':
-            raise UserError(_("You can only generate the Excel file for confirmed transfers."))
-
-        # Generate Excel report
-        excel_data = self.generate_excel_report()
-        
-        # Send email with Excel report
-        self.send_excel_report_email(excel_data)
-
-        return {'type': 'ir.actions.act_window_close'}
+        return super(StockPicking, self).action_generate_and_send_excel()
 
     def _get_report_lines(self):
         self.ensure_one()
         lines = []
-        for move_line in self.move_line_ids.filtered(lambda ml: ml.product_id.tracking == 'serial' and ml.lot_id):
-            lines.append((move_line.move_id.sale_line_id or move_line.move_id, move_line))
-        _logger.info(f"Report lines for stock picking {self.name}: {lines}")
+        for move_line in self.move_line_ids.filtered(lambda ml: ml.product_id.tracking == 'serial'):
+            sale_line = move_line.move_id.sale_line_id
+            lines.append((sale_line or move_line, move_line))
         return lines
-
-    def send_excel_report_email(self, excel_data):
-        attachment = self.env['ir.attachment'].create({
-            'name': f'Product_Info_{self.name}.xlsx',
-            'datas': base64.b64encode(excel_data),
-            'res_model': 'stock.picking',
-            'res_id': self.id,
-        })
-
-        template = self.env.ref('supplier_information_import.email_template_product_info_delivery')
-        template.send_mail(
-            self.id,
-            force_send=True,
-            email_values={'attachment_ids': [attachment.id]}
-        )

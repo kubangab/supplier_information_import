@@ -13,12 +13,6 @@ class ProductInfoReportMixin(models.AbstractModel):
 
     def action_generate_and_send_excel(self):
         self.ensure_one()
-        if self._name == 'sale.order' and self.state not in ['sale', 'done']:
-            raise UserError(_("You can only generate the Excel file for confirmed sales orders."))
-        elif self._name == 'stock.picking' and self.state != 'done':
-            raise UserError(_("You can only generate the Excel file for confirmed transfers."))
-
-        # Generate Excel report
         excel_data = self.generate_excel_report()
         
         # Create attachment
@@ -28,14 +22,16 @@ class ProductInfoReportMixin(models.AbstractModel):
             'res_model': self._name,
             'res_id': self.id,
         })
-
-        # Get the correct email template
+    
+        # Determine the correct email template based on the model
         if self._name == 'sale.order':
             template = self.env.ref('supplier_information_import.email_template_product_info_sale_order')
-        else:  # stock.picking
+        elif self._name == 'stock.picking':
             template = self.env.ref('supplier_information_import.email_template_product_info_delivery')
+        else:
+            raise UserError(_("No email template found for this model."))
         
-        # Use Odoo's built-in mail composer
+        # Prepare the email composer
         compose_form = self.env.ref('mail.email_compose_message_wizard_form', False)
         ctx = dict(
             default_model=self._name,
@@ -48,6 +44,8 @@ class ProductInfoReportMixin(models.AbstractModel):
             force_email=True,
             default_attachment_ids=[(4, attachment.id)]
         )
+        
+        # Open the email composer
         return {
             'name': _('Compose Email'),
             'type': 'ir.actions.act_window',
@@ -61,24 +59,28 @@ class ProductInfoReportMixin(models.AbstractModel):
 
     def generate_excel_report(self):
         self.ensure_one()
+        partner = self.partner_id if hasattr(self, 'partner_id') else self.env.user.partner_id
+        partner_lang = partner.lang or self.env.user.lang
+        
+        # Set the context to the partner's language
+        self = self.with_context(lang=partner_lang)
+        
         output = BytesIO()
         workbook = xlsxwriter.Workbook(output)
         
         field_names = self._get_report_field_names()
         worksheet = workbook.add_worksheet(field_names['worksheet_name'])
-    
+
         config = self.env['import.format.config'].search([], limit=1)
         
         # Define headers based on configuration
-        headers = [field.name for field in config.report_field_ids.sorted(key=lambda r: r.sequence)]
+        headers = [field.with_context(lang=partner_lang).name for field in config.report_field_ids.sorted(key=lambda r: r.sequence)]
         _logger.info(f"Headers: {headers}")
-    
+
         # Write headers
         for col, field_config in enumerate(config.report_field_ids.sorted(key=lambda r: r.sequence)):
-            field_key = field_config.field_id.name.lower().replace('_', '')
-            header = field_names.get(field_key, field_config.name)
-            worksheet.write(0, col, header)
-    
+            worksheet.write(0, col, field_config.with_context(lang=partner_lang).name)
+
         # Collect and write data
         row = 1
         for line, move_line in self._get_report_lines():
@@ -87,15 +89,12 @@ class ProductInfoReportMixin(models.AbstractModel):
             for field_config in config.report_field_ids.sorted(key=lambda r: r.sequence):
                 value = self._get_field_value(line, move_line, field_config)
                 _logger.info(f"Field: {field_config.name}, Value: {value}")
-                if isinstance(value, models.Model):
-                    value = value.display_name
                 worksheet.write(row, col, str(value) if value else '')
                 col += 1
             row += 1
-    
+
         workbook.close()
         return output.getvalue()
-
 
     def _get_report_lines(self):
         # This method should be implemented in the inheriting models
@@ -106,9 +105,8 @@ class ProductInfoReportMixin(models.AbstractModel):
             product = line.product_id
             sn = move_line.lot_id.name if move_line and move_line.lot_id else False
     
-            _logger.info(f"Searching for incoming info: product={product.name} (ID: {product.id}, Template ID: {product.product_tmpl_id.id}, Default Code: {product.default_code}), SN={sn}")
+            _logger.info(f"Searching for incoming info: product={product.name} (ID: {product.id}, Default Code: {product.default_code}), SN={sn}")
     
-            # Search for incoming info based on SN and product template or variant
             incoming_info = self.env['incoming.product.info'].search([
                 ('sn', '=', sn),
                 '|',
@@ -129,19 +127,23 @@ class ProductInfoReportMixin(models.AbstractModel):
                 _logger.warning(f"No incoming info found for SN={sn} and Product Template ID={product.product_tmpl_id.id}")
                 return ''
     
-        # ... (rest of the method remains the same)
-    
         # Handle other field types here
         if field_config.field_id.model == 'product.product':
-            return getattr(line.product_id, field_config.field_id.name, '')
+            value = getattr(line.product_id, field_config.field_id.name, '')
+        elif field_config.field_id.model == 'product.template':
+            value = getattr(line.product_id.product_tmpl_id, field_config.field_id.name, '')
         elif field_config.field_id.model == 'sale.order.line':
-            return getattr(line, field_config.field_id.name, '')
+            value = getattr(line, field_config.field_id.name, '')
         elif field_config.field_id.model == 'stock.move.line':
-            return getattr(move_line, field_config.field_id.name, '') if move_line else ''
-        
-        # If we don't have a specific handler, return an empty string
-        _logger.warning(f"No handler for field model: {field_config.field_id.model}")
-        return ''
+            if field_config.field_id.name == 'lot_id':
+                value = move_line.lot_id.name if move_line and move_line.lot_id else ''
+            else:
+                value = getattr(move_line, field_config.field_id.name, '') if move_line else ''
+        else:
+            _logger.warning(f"No handler for field model: {field_config.field_id.model}")
+            value = ''
+    
+        return str(value) if value not in [False, 'False'] else ''
 
     def _get_report_field_names(self):
         config = self.env['import.format.config'].search([], limit=1)
@@ -171,6 +173,33 @@ class ProductInfoReportMixin(models.AbstractModel):
                 'lotid': _('Serial Number'),
                 'worksheet_name': _('Product Info'),
             }
+
+    def send_excel_report_email(self, template, attachment):
+        # Send email in the partner's language
+        partner = self.partner_id if hasattr(self, 'partner_id') else self.env.user.partner_id
+        
+        # Use Odoo's built-in mail composer
+        composer = self.env['mail.compose.message'].with_context({
+            'default_model': self._name,
+            'default_res_id': self.id,
+            'default_use_template': bool(template),
+            'default_template_id': template.id,
+            'default_composition_mode': 'comment',
+            'mark_so_as_sent': True,
+            'custom_layout': "mail.mail_notification_paynow",
+            'force_email': True,
+            'default_attachment_ids': [(4, attachment.id)]
+        }).create({})
+        
+        # Prepare the email values
+        email_values = composer.onchange_template_id(template.id, 'comment', self._name, self.id)['value']
+        email_values['attachment_ids'] = [(4, attachment.id)]
+        
+        # Send the email
+        composer.with_context(lang=partner.lang).write(email_values)
+        composer.send_mail()
+    
+        return True
 
 class ProductInfoReportConfig(models.Model):
     _name = 'product.info.report.config'
