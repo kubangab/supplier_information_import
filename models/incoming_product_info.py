@@ -33,6 +33,7 @@ class IncomingProductInfo(models.Model):
         ('pending', 'Pending'),
         ('received', 'Received'),
     ], string='Status', default='pending')
+    lot_id = fields.Many2one('stock.lot', string='Lot/Serial Number')
 
     @api.depends('supplier_product_code', 'sn')
     def _compute_name(self):
@@ -43,7 +44,7 @@ class IncomingProductInfo(models.Model):
             record.name = f"{record.supplier_product_code or ''} - {record.sn or ''}"
 
     @api.model
-    def _search_product(self, values_list, config):
+    def _search_product(self, values, config):
         """
         Search for a product based on the provided values and configuration.
     
@@ -52,7 +53,7 @@ class IncomingProductInfo(models.Model):
         :return: The found product record or False if not found
         """
         try:
-            _logger.info(f"Starting _search_product with {len(values_list)} values")
+            _logger.info(f"Starting _search_product with values: {values}")
             supplier = config.supplier_id
             main_supplier = supplier.parent_id or supplier
             supplier_domain = [
@@ -62,59 +63,88 @@ class IncomingProductInfo(models.Model):
                 ('id', 'child_of', main_supplier.id)
             ]
             supplier_and_contacts = self.env['res.partner'].search(supplier_domain)
-            _logger.info(f"Supplier and contacts: {supplier_and_contacts.mapped('name')}")
-    
-            # Prepare data for batch processing
-            all_model_nos = set()
-            all_product_codes = set()
-            for values in values_list:
-                all_model_nos.add(values.get('model_no'))
-                all_product_codes.add(values.get('supplier_product_code') or values.get('model_no'))
-    
-            # Search for products
-            domain = ['|', 
-                ('default_code', 'in', list(all_model_nos)),
-                '&', ('seller_ids.product_code', 'in', list(all_product_codes)),
-                    ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
+            
+            model_no = values.get('model_no')
+            supplier_product_code = values.get('supplier_product_code') or model_no
+        
+            # 1. Check Combination Rules
+            rule_product = self._check_combination_rules(values, config, supplier_and_contacts)
+            if rule_product:
+                _logger.info(f"Product found via Combination Rules: {rule_product.name}")
+                return rule_product
+        
+            # 2. Check Unmatched Model No
+            unmatched_product = self._check_unmatched_model(model_no, config, supplier_and_contacts)
+            if unmatched_product:
+                _logger.info(f"Product found via Unmatched Model No: {unmatched_product.name}")
+                return unmatched_product
+        
+            # 3. Check against supplier product code
+            domain = [
+                ('seller_ids.product_code', '=', supplier_product_code),
+                ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
             ]
+            
             products = self.env['product.product'].search(domain)
-    
-            # Create a dictionary for quick lookup
-            product_dict = {}
-            for product in products:
-                product_dict[product.default_code] = product
-                for seller in product.seller_ids.filtered(lambda s: s.partner_id in supplier_and_contacts):
-                    product_dict[seller.product_code] = product
-    
-            # Match products to values
-            results = []
-            for values in values_list:
-                model_no = values.get('model_no')
-                supplier_product_code = values.get('supplier_product_code') or model_no
-                
-                product = product_dict.get(supplier_product_code) or product_dict.get(model_no)
-                
-                if not product:
-                    _logger.warning(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
-                
-                results.append(product)
-    
-            _logger.info(f"_search_product completed. Found {len([r for r in results if r])} matches out of {len(values_list)} values")
-            return results
-    
+            
+            if len(products) == 1:
+                return products
+            elif len(products) > 1:
+                _logger.warning(f"Multiple products found for supplier_product_code {supplier_product_code}. Adding to Unmatched Model No.")
+                self._add_to_unmatched_models(values, config)
+                return False
+            
+            _logger.info(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
+            self._add_to_unmatched_models(values, config)
+            return False
+		
         except Exception as e:
             _logger.error(f"Error in _search_product: {str(e)}", exc_info=True)
-            return [False] * len(values_list)
+            return False
+
+    @api.model
+    def find_or_create(self, values):
+        existing = self.search([
+            ('supplier_id', '=', values['supplier_id']),
+            ('sn', '=', values['sn'])
+        ], limit=1)
+    
+        if existing:
+            existing.write(values)
+            return existing, False  # False indicates it's not a new record
+        else:
+            return self.create(values), True  # True indicates it's a new record
+
+    @api.model
+    def _match_serial_number(self, values, product):
+        StockLot = self.env['stock.lot']
+        existing_lot = StockLot.search([
+            ('name', '=', values['sn']),
+            ('product_id', '=', product.id),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+
+        if existing_lot:
+            _logger.info(f"Matched existing lot for SN: {values['sn']}")
+            return existing_lot, 'received'
+        else:
+            new_lot = StockLot.create({
+                'name': values['sn'],
+                'product_id': product.id,
+                'company_id': self.env.company.id,
+            })
+            _logger.info(f"Created new lot for SN: {values['sn']}")
+            return new_lot, 'pending'
 
     def _check_combination_rules(self, values, config, supplier_and_contacts):
         for rule in config.combination_rule_ids:
             field1_value = values.get(rule.field_1.destination_field_name)
             field2_value = values.get(rule.field_2.destination_field_name)
             
-            # Kontrollera om värdena matchar regeln
+            # Check if values match the rule
             if (field1_value == rule.value_1 or not rule.value_1) and (field2_value == rule.value_2 or not rule.value_2):
                 if rule.product_id:
-                    # Kontrollera om produkten har en leverantör som matchar
+                    # Check if the product has a supplier that matches
                     matching_supplier = rule.product_id.seller_ids.filtered(
                         lambda s: s.partner_id in supplier_and_contacts
                     )
@@ -134,6 +164,7 @@ class IncomingProductInfo(models.Model):
         ], limit=1)
         return unmatched.product_id if unmatched else False
 
+    @api.model
     def _add_to_unmatched_models(self, values, config):
         UnmatchedModelNo = self.env['unmatched.model.no']
         model_no = values.get('model_no')
@@ -141,7 +172,7 @@ class IncomingProductInfo(models.Model):
             ('config_id', '=', config.id),
             ('model_no', '=', model_no)
         ], limit=1)
-
+    
         if existing:
             existing.write({
                 'count': existing.count + 1,
@@ -185,16 +216,14 @@ class IncomingProductInfo(models.Model):
         :return: The created records
         :raises ValidationError: If required fields are missing
         """
-        if not isinstance(vals_list, list):
-            vals_list = [vals_list]
-            
         for vals in vals_list:
-            if 'sn' not in vals or not vals['sn']:
-                raise ValidationError(_("Serial Number (SN) is required and cannot be empty."))
-            if 'model_no' not in vals or not vals['model_no']:
-                raise ValidationError(_("Model Number is required and cannot be empty."))
-            _logger.info(f"Creating incoming product info with values: {vals}")
-        return super(IncomingProductInfo, self).create(vals_list)
+            if 'product_id' in vals and 'sn' in vals:
+                product = self.env['product.product'].browse(vals['product_id'])
+                lot, state = self._match_serial_number(vals, product)
+                vals['lot_id'] = lot.id
+                vals['state'] = state
+
+        return super().create(vals_list)
 
     def write(self, vals):
         """

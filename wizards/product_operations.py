@@ -32,155 +32,90 @@ class ImportProductInfo(models.TransientModel):
         :raises UserError: If there's an error during the import process
         """
         self.ensure_one()
-        if not self.file or not self.import_config_id:
-            raise UserError(_('Please select a file and import configuration.'))
+        if not self.file:
+            raise UserError(_('Please select a file to import.'))
+        
+        config = self.import_config_id
+        if not config:
+            raise UserError(_('Please select an import configuration.'))
     
         file_content = base64.b64decode(self.file)
-        config = self.import_config_id
-    
+        
         try:
-            data_generator = process_csv(file_content) if config.file_type == 'csv' else process_excel(file_content)
+            if config.file_type == 'csv':
+                data = process_csv(file_content)
+            elif config.file_type == 'excel':
+                data = process_excel(file_content)
+            else:
+                raise UserError(_('Unsupported file format. Please use CSV or Excel files.'))
+    
+            if not data:
+                raise UserError(_('No data found in the file.'))
     
             IncomingProductInfo = self.env['incoming.product.info']
-            UnmatchedModelNo = self.env['unmatched.model.no']
-            
+            total_processed = 0
             total_created = 0
             total_updated = 0
-            total_unmatched = 0
-            all_errors = []
+            errors = []
     
-            for chunk in data_generator:
-                to_create = []
-                to_update = []
-                unmatched_models = []
-                chunk_errors = []
-    
-                # Process chunk
-                values_list = [self._process_row_values(row, config) for row in chunk]
-                products = IncomingProductInfo._search_product(values_list, config)
-    
-                for index, (values, product) in enumerate(zip(values_list, products)):
+            for chunk in data:
+                for index, row in enumerate(chunk, start=total_processed + 1):
                     try:
-                        # Check for required fields
-                        if not values.get('sn'):
-                            raise ValidationError(_("Serial Number (SN) is required and cannot be empty."))
-                        if not values.get('model_no'):
-                            raise ValidationError(_("Model Number is required and cannot be empty."))
-    
-                        values['supplier_id'] = config.supplier_id.id
+                        values = self._process_row_values(row, config)
+                        
+                        product = IncomingProductInfo._search_product(values, config)
                         if product:
                             values['product_id'] = product.id
-                        
-                        existing_info = IncomingProductInfo.search([
-                            ('supplier_id', '=', config.supplier_id.id),
-                            ('sn', '=', values['sn'])
-                        ], limit=1)
-                        
-                        if existing_info:
-                            to_update.append((existing_info, values))
+                            values['supplier_id'] = config.supplier_id.id
+                            record, is_new = IncomingProductInfo.find_or_create(values)
+                            if is_new:
+                                total_created += 1
+                            else:
+                                total_updated += 1
                         else:
-                            to_create.append(values)
-                        
-                        if not product:
-                            unmatched_models.append(values)
-                    except ValidationError as e:
-                        chunk_errors.append((index, values, str(e)))
+                            IncomingProductInfo._add_to_unmatched_models(values, config)
                     except Exception as e:
-                        chunk_errors.append((index, values, f"Unexpected error: {str(e)}"))
+                        errors.append((index, row, str(e)))
+                    
+                    total_processed += 1
     
-                # Batch create and update
-                try:
-                    if to_create:
-                        IncomingProductInfo.create(to_create)
-                        total_created += len(to_create)
-                    if to_update:
-                        for record, values in to_update:
-                            record.write(values)
-                        total_updated += len(to_update)
-    
-                    # Handle unmatched models
-                    if unmatched_models:
-                        for values in unmatched_models:
-                            UnmatchedModelNo._add_to_unmatched_models(values, config)
-                        total_unmatched += len(unmatched_models)
-                except Exception as e:
-                    chunk_errors.append((-1, {}, f"Error in batch processing: {str(e)}"))
-    
-                all_errors.extend(chunk_errors)
-    
-            self.env.cr.commit()  # Commit the changes to the database
-    
-            message = _('Successfully imported {} new records, updated {} existing records, and found {} unmatched models.').format(
-                total_created, total_updated, total_unmatched)
-            
-            if all_errors:
-                error_message = collect_errors(all_errors)
-                message += _("\n\nThe following errors occurred during import:\n%s") % error_message
+            message = _(f'Processed {total_processed} rows, created {total_created} new records, updated {total_updated} existing records.')
+            if errors:
+                error_message = collect_errors(errors)
+                message += _("\n\nErrors occurred during import. Check the logs for details.")
                 log_level = "warning"
             else:
                 log_level = "info"
     
             log_and_notify(self.env, message, error_type=log_level)
     
+            # Update the state to 'done'
             self.write({'state': 'done'})
-    
+            
+            # Send a sticky notification
+            self.env['bus.bus']._sendone(self.env.user.partner_id, 'simple_notification', {
+                'title': _('Import Completed'),
+                'message': message,
+                'type': 'warning' if errors else 'success',
+                'sticky': True,
+            })
+            
+            # Return an action to keep the wizard open
             return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Import Completed'),
-                    'message': message,
-                    'type': 'warning' if all_errors else 'success',
-                    'sticky': bool(all_errors),
-                    'next': {
-                        'type': 'ir.actions.act_window',
-                        'res_model': 'import.product.info',
-                        'view_mode': 'form',
-                        'res_id': self.id,
-                        'views': [(False, 'form')],
-                        'target': 'new',
-                        'context': {'form_view_initial_mode': 'edit'}
-                    }
-                }
+                'type': 'ir.actions.act_window',
+                'res_model': 'import.product.info',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'view_type': 'form',
+                'target': 'new',
+                'context': {'form_view_initial_mode': 'edit'},
             }
     
         except Exception as e:
-            log_and_notify(self.env, _("Error during file import: %s") % str(e), error_type="error")
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Import Error'),
-                    'message': str(e),
-                    'type': 'danger',
-                    'sticky': True,
-                }
-            }
-
-    def _create_or_update_lot(self, record):
-        StockLot = self.env['stock.lot']
-        try:
-            existing_lot = StockLot.search([
-                ('name', '=', record.sn),
-                ('product_id', '=', record.product_id.id),
-                ('company_id', '=', self.env.company.id)
-            ], limit=1)
-
-            if existing_lot:
-                record.write({'state': 'received'})
-                _logger.info(f"Updated existing lot for product {record.product_id.name}, SN {record.sn}")
-            else:
-                StockLot.create({
-                    'name': record.sn,
-                    'product_id': record.product_id.id,
-                    'company_id': self.env.company.id,
-                })
-                record.write({'state': 'received'})
-                _logger.info(f"Created new lot for product {record.product_id.name}, SN {record.sn}")
-        except Exception as e:
-            _logger.error(f"Error handling lot for product {record.product_id.name}, SN {record.sn}: {str(e)}")
-            record.write({'state': 'pending'})
-
+            error_message = _("Error during file import: {}").format(str(e))
+            _logger.error(error_message, exc_info=True)
+            log_and_notify(self.env, error_message, error_type="error")
+            raise UserError(error_message)
     def _process_row_values(self, row, config):
         """
         Process a single row of data from the imported file.
@@ -200,22 +135,17 @@ class ImportProductInfo(models.TransientModel):
                 _logger.info(f"Mapped '{source_column}' to '{dest_field}': {source_value}")
             elif dest_field:
                 _logger.warning(f"Missing value for '{source_column}' (maps to '{dest_field}')")
-        
-        # If model_no is missing, try to use supplier_product_code or pn
-        if 'model_no' not in values or not values['model_no']:
-            values['model_no'] = values.get('supplier_product_code') or values.get('pn') or ''
-            if values['model_no']:
-                _logger.info(f"Using {values['model_no']} as model_no")
-            else:
-                _logger.warning("Unable to determine model_no")
     
-        # Ensure supplier_product_code is set
+        # Ensure required fields are present
+        required_fields = ['sn', 'model_no']
+        for field in required_fields:
+            if field not in values:
+                raise ValueError(f"Required field '{field}' is missing")
+    
+        # Handle supplier_product_code
         if 'supplier_product_code' not in values or not values['supplier_product_code']:
-            values['supplier_product_code'] = values.get('model_no') or values.get('pn') or ''
-            if values['supplier_product_code']:
-                _logger.info(f"Using {values['supplier_product_code']} as supplier_product_code")
-            else:
-                _logger.warning("Unable to determine supplier_product_code")
+            values['supplier_product_code'] = values.get('model_no', '')
+            _logger.info(f"Using {values['supplier_product_code']} as supplier_product_code")
     
         _logger.info(f"Processed values for row: {values}")
         return values
