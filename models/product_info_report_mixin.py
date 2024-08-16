@@ -3,6 +3,9 @@ from odoo.exceptions import UserError
 import base64
 import xlsxwriter
 from io import BytesIO
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class ProductInfoReportMixin(models.AbstractModel):
     _name = 'product.info.report.mixin'
@@ -61,78 +64,111 @@ class ProductInfoReportMixin(models.AbstractModel):
         output = BytesIO()
         workbook = xlsxwriter.Workbook(output)
         
+        field_names = self._get_report_field_names()
+        worksheet = workbook.add_worksheet(field_names['worksheet_name'])
+    
         config = self.env['import.format.config'].search([], limit=1)
-        worksheet = workbook.add_worksheet(config.report_worksheet_name or 'Product Info')
-
+        
         # Define headers based on configuration
-        headers = [field.with_context(lang=self.partner_id.lang).name for field in config.report_field_ids.sorted(key=lambda r: r.sequence)]
-
+        headers = [field.name for field in config.report_field_ids.sorted(key=lambda r: r.sequence)]
+        _logger.info(f"Headers: {headers}")
+    
         # Write headers
-        for col, header in enumerate(headers):
+        for col, field_config in enumerate(config.report_field_ids.sorted(key=lambda r: r.sequence)):
+            field_key = field_config.field_id.name.lower().replace('_', '')
+            header = field_names.get(field_key, field_config.name)
             worksheet.write(0, col, header)
-
+    
         # Collect and write data
         row = 1
-        for line in self._get_report_lines():
-            if self._name == 'stock.picking':
-                product_lines = line
-            else:  # sale.order
-                product_lines = self.env['stock.move.line'].search([
-                    ('picking_id.sale_id', '=', self.id),
-                    ('product_id', '=', line.product_id.id),
-                    ('lot_id', '!=', False)
-                ])
-
-            for product_line in product_lines:
-                col = 0
-                for field_config in config.report_field_ids.sorted(key=lambda r: r.sequence):
-                    if field_config.field_id.model == 'product.product':
-                        if field_config.field_id.name == 'name':
-                            # Use product_template_id.name from the sale order line
-                            if self._name == 'sale.order':
-                                value = line.product_template_id.name
-                            else:
-                                value = product_line.product_id.product_tmpl_id.name
-                        else:
-                            value = product_line.product_id[field_config.field_id.name]
-                    elif field_config.field_id.model in ['sale.order.line', 'stock.move.line']:
-                        value = getattr(product_line, field_config.field_id.name, '')
-                    elif field_config.field_id.model == 'incoming.product.info':
-                        incoming_info = self.env['incoming.product.info'].search([
-                            ('product_id', '=', product_line.product_id.id),
-                            ('sn', '=', product_line.lot_id.name if product_line.lot_id else False),
-                        ], limit=1)
-                        value = getattr(incoming_info, field_config.field_id.name, '') if incoming_info else ''
-
-                    if isinstance(value, models.Model):
-                        value = value.with_context(lang=self.partner_id.lang).display_name
-                    worksheet.write(row, col, str(value) if value else '')
-                    col += 1
-                row += 1
-
+        for line, move_line in self._get_report_lines():
+            _logger.info(f"Processing line: {line}, move_line: {move_line}")
+            col = 0
+            for field_config in config.report_field_ids.sorted(key=lambda r: r.sequence):
+                value = self._get_field_value(line, move_line, field_config)
+                _logger.info(f"Field: {field_config.name}, Value: {value}")
+                if isinstance(value, models.Model):
+                    value = value.display_name
+                worksheet.write(row, col, str(value) if value else '')
+                col += 1
+            row += 1
+    
         workbook.close()
         return output.getvalue()
+
 
     def _get_report_lines(self):
         # This method should be implemented in the inheriting models
         raise NotImplementedError(_("This method must be implemented in the inheriting model"))
 
+    def _get_field_value(self, line, move_line, field_config):
+        if field_config.field_id.model == 'incoming.product.info':
+            product = line.product_id
+            sn = move_line.lot_id.name if move_line and move_line.lot_id else False
+    
+            _logger.info(f"Searching for incoming info: product={product.name} (ID: {product.id}, Template ID: {product.product_tmpl_id.id}, Default Code: {product.default_code}), SN={sn}")
+    
+            # Search for incoming info based on SN and product template or variant
+            incoming_info = self.env['incoming.product.info'].search([
+                ('sn', '=', sn),
+                '|',
+                ('product_id', '=', product.id),
+                ('product_id.product_tmpl_id', '=', product.product_tmpl_id.id)
+            ], limit=1)
+    
+            if incoming_info:
+                if incoming_info.product_id.id != product.id:
+                    _logger.info(f"Product variant mismatch, but template matches. IncomingProductInfo Product ID: {incoming_info.product_id.id}, Template ID: {incoming_info.product_id.product_tmpl_id.id}")
+                
+                _logger.info(f"Found incoming info: {incoming_info.name}")
+                field_name = field_config.field_id.name.lower()
+                value = getattr(incoming_info, field_name, '')
+                _logger.info(f"Field: {field_config.field_id.name}, Value: {value}")
+                return value if value not in [False, 'False'] else ''
+            else:
+                _logger.warning(f"No incoming info found for SN={sn} and Product Template ID={product.product_tmpl_id.id}")
+                return ''
+    
+        # ... (rest of the method remains the same)
+    
+        # Handle other field types here
+        if field_config.field_id.model == 'product.product':
+            return getattr(line.product_id, field_config.field_id.name, '')
+        elif field_config.field_id.model == 'sale.order.line':
+            return getattr(line, field_config.field_id.name, '')
+        elif field_config.field_id.model == 'stock.move.line':
+            return getattr(move_line, field_config.field_id.name, '') if move_line else ''
+        
+        # If we don't have a specific handler, return an empty string
+        _logger.warning(f"No handler for field model: {field_config.field_id.model}")
+        return ''
+
     def _get_report_field_names(self):
         config = self.env['import.format.config'].search([], limit=1)
         if config:
-            return {
-                'sku': _(config.report_sku_field.field_description if config.report_sku_field else 'SKU'),
-                'product': _(config.report_product_field.field_description if config.report_product_field else 'Product'),
-                'quantity': _(config.report_quantity_field.field_description if config.report_quantity_field else 'Quantity'),
-                'serial_number': _(config.report_serial_number_field.field_description if config.report_serial_number_field else 'Serial Number'),
-                'worksheet_name': _(config.report_worksheet_name or 'Product Info'),
-            }
+            field_names = {}
+            for report_field in config.report_field_ids.sorted(key=lambda r: r.sequence):
+                field_key = report_field.field_id.name.lower().replace('_', '')
+                field_names[field_key] = _(report_field.name)
+            
+            # Ensure we have defaults for essential fields
+            if 'sku' not in field_names:
+                field_names['sku'] = _('SKU')
+            if 'name' not in field_names:
+                field_names['name'] = _('Product')
+            if 'productuomqty' not in field_names:
+                field_names['productuomqty'] = _('Quantity')
+            if 'lotid' not in field_names:
+                field_names['lotid'] = _('Serial Number')
+            
+            field_names['worksheet_name'] = _(config.report_worksheet_name or 'Product Info')
+            return field_names
         else:
             return {
                 'sku': _('SKU'),
-                'product': _('Product'),
-                'quantity': _('Quantity'),
-                'serial_number': _('Serial Number'),
+                'name': _('Product'),
+                'productuomqty': _('Quantity'),
+                'lotid': _('Serial Number'),
                 'worksheet_name': _('Product Info'),
             }
 

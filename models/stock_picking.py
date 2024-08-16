@@ -1,8 +1,6 @@
-from odoo import models, fields, api, _
+from odoo import models, _
 from odoo.exceptions import UserError
 import base64
-import xlsxwriter
-from io import BytesIO
 
 class StockPicking(models.Model):
     _name = 'stock.picking'
@@ -78,7 +76,12 @@ class StockPicking(models.Model):
         return {'type': 'ir.actions.act_window_close'}
 
     def _get_report_lines(self):
-        return self.move_line_ids.filtered(lambda line: line.product_id.tracking == 'serial' and line.lot_id)
+        self.ensure_one()
+        lines = []
+        for move_line in self.move_line_ids.filtered(lambda ml: ml.product_id.tracking == 'serial' and ml.lot_id):
+            lines.append((move_line.move_id.sale_line_id or move_line.move_id, move_line))
+        _logger.info(f"Report lines for stock picking {self.name}: {lines}")
+        return lines
 
     def send_excel_report_email(self, excel_data):
         attachment = self.env['ir.attachment'].create({
