@@ -267,7 +267,7 @@ class ImportFormatConfig(models.Model):
                 ImportColumnMapping.create(mapping_vals)
     
         except Exception as e:
-            log_and_notify(self.env, _("Error processing sample file: %s") % str(e), error_type="error")
+            log_and_notify(self,env, _("Error processing sample file: %s") % str(e), error_type="error")
     
     @api.depends('supplier_id')
     def _compute_actual_supplier(self):

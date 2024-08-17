@@ -5,6 +5,7 @@ class UnmatchedModelNo(models.Model, ProductSelectionMixin):
     _name = 'unmatched.model.no'
     _inherit = 'product.selection.mixin'
     _description = 'Unmatched Model Number'
+    _order = 'count desc, model_no'
 
     config_id = fields.Many2one('import.format.config', string='Configuration', required=True)
     supplier_id = fields.Many2one('res.partner', string='Supplier', required=True)
@@ -12,9 +13,10 @@ class UnmatchedModelNo(models.Model, ProductSelectionMixin):
     pn = fields.Char(string='PN')
     product_code = fields.Char(string='Product Code')
     supplier_product_code = fields.Char(string='Supplier Product Code')
-    product_id = fields.Many2one('product.product', string='Product')
+    product_id = fields.Many2one('product.product', string='Product Variant')
     count = fields.Integer(string='Count', default=1)
     raw_data = fields.Text(string='Raw Data')
+    sequence = fields.Integer(string='Sequence', default=10)
 
     product_selection = fields.Selection(selection='_get_product_codes', string='Product Selection')
 
@@ -63,3 +65,13 @@ class UnmatchedModelNo(models.Model, ProductSelectionMixin):
                 'raw_data': str(values),
                 'count': 1
             })
+
+    @api.model
+    def sort_records(self, config_id):
+        try:
+            records = self.search([('config_id', '=', config_id)], order='count desc, model_no')
+            for i, record in enumerate(records):
+                record.sequence = i
+        except Exception as e:
+            _logger.error(f"Error sorting unmatched model records: {str(e)}")
+            # Don't raise the exception, just log it

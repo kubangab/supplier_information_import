@@ -11,20 +11,22 @@
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
                 </group>
+                <div class="alert alert-info" role="alert" attrs="{'invisible': [('state', '!=', 'done')]}">
+                    <field name="result_message" readonly="1"/>
+                </div>
                 <footer>
                     <button name="import_file" 
-                            string="Import" 
+                            string="Import"
                             type="object" 
                             class="btn-primary" 
-                            attrs="{'invisible': [('state', '=', 'done')]}"
-                            context="{'active_id': id}"/>
+                            attrs="{'invisible': [('state', '=', 'done')]}"/>
                     <button string="Cancel" 
                             class="btn-secondary" 
                             special="cancel" 
                             attrs="{'invisible': [('state', '=', 'done')]}"/>
                     <button string="Close" 
                             class="btn-secondary" 
-                            special="cancel" 
+                            special="cancel"
                             attrs="{'invisible': [('state', '!=', 'done')]}"/>
                 </footer>
             </form>

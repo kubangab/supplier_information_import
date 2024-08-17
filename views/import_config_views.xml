@@ -84,7 +84,7 @@
                         <field name="value_1"/>
                         <field name="field_2" domain="[('config_id', '=', config_id)]"/>
                         <field name="value_2"/>
-                        <field name="product_id" options="{'no_create': True}"/>
+                        <field name="product_id" options="{'no_create': True}" domain="[('type', '=', 'product')]"/>
                     </group>
                 </sheet>
             </form>
@@ -109,13 +109,14 @@
         <field name="model">unmatched.model.no</field>
         <field name="arch" type="xml">
             <tree string="Unmatched Model Numbers" editable="bottom">
+                <field name="sequence" widget="handle"/>
                 <field name="config_id" optional="show"/>
                 <field name="supplier_id" optional="hide"/>
                 <field name="model_no" optional="show"/>
                 <field name="pn" optional="show"/>
                 <field name="product_code" optional="show"/>
                 <field name="supplier_product_code" optional="hide"/>
-                <field name="product_id"  optional="show" options="{'no_create': True}" domain="['|', '|', ('seller_ids.partner_id', '=', supplier_id), ('seller_ids.partner_id', 'child_of', supplier_id), ('seller_ids.partner_id', 'parent_of', supplier_id)]"/>
+                <field name="product_id" options="{'no_create': True}" domain="[('type', '=', 'product')]"/>
                 <field name="count" optional="show"/>
                 <button name="action_link_product" string="Link Product" type="object" icon="fa-link" attrs="{'invisible': [('product_id', '=', False)]}"/>
             </tree>

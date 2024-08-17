@@ -1,5 +1,6 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+from odoo.tools.misc import format_date, format_datetime
 import base64
 import xlsxwriter
 from io import BytesIO
@@ -11,16 +12,42 @@ class ProductInfoReportMixin(models.AbstractModel):
     _name = 'product.info.report.mixin'
     _description = 'Product Info Report Mixin'
 
+    def _get_partner_lang(self):
+        partner = self.partner_id if hasattr(self, 'partner_id') else self.env.user.partner_id
+        return partner.lang or self.env.user.lang
+
+    def _get_report_worksheet_name(self):
+        return _('Product Info')
+
+    def _get_report_headers(self, lang):
+        config = self.env['import.format.config'].search([], limit=1)
+        return [field.with_context(lang=lang).name for field in config.report_field_ids.sorted(key=lambda r: r.sequence)]
+
+    def _get_report_fields(self):
+        config = self.env['import.format.config'].search([], limit=1)
+        return config.report_field_ids.sorted(key=lambda r: r.sequence).mapped('field_id')
+
+    def _get_report_lines(self):
+        # This method should be implemented in the inheriting model
+        raise NotImplementedError(_("This method must be implemented in the inheriting model"))
+
     def action_generate_and_send_excel(self):
         self.ensure_one()
+        partner_lang = self._get_partner_lang()
+        
+        # Switch to the partner's language context
+        self = self.with_context(lang=partner_lang)
+        
         excel_data = self.generate_excel_report()
         
         # Create attachment
         attachment = self.env['ir.attachment'].create({
             'name': f'Product_Info_{self.name}.xlsx',
-            'datas': base64.b64encode(excel_data),
+            'datas': excel_data,
             'res_model': self._name,
             'res_id': self.id,
+            'type': 'binary',
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
     
         # Determine the correct email template based on the model
@@ -42,10 +69,19 @@ class ProductInfoReportMixin(models.AbstractModel):
             mark_so_as_sent=True,
             custom_layout="mail.mail_notification_paynow",
             force_email=True,
-            default_attachment_ids=[(4, attachment.id)]
+            default_attachment_ids=[(4, attachment.id)],
+            lang=partner_lang,  # Set the language for the email
         )
         
-        # Open the email composer
+        # Get the translated subject and body
+        template_ctx = dict(ctx, partner_ids=(self.partner_id.id,))
+        rendered_template = template.with_context(template_ctx).generate_email(self.id, ['subject', 'body_html'])
+        
+        ctx.update({
+            'default_subject': rendered_template.get('subject', ''),
+            'default_body': rendered_template.get('body_html', ''),
+        })
+        
         return {
             'name': _('Compose Email'),
             'type': 'ir.actions.act_window',
@@ -59,91 +95,86 @@ class ProductInfoReportMixin(models.AbstractModel):
 
     def generate_excel_report(self):
         self.ensure_one()
-        partner = self.partner_id if hasattr(self, 'partner_id') else self.env.user.partner_id
-        partner_lang = partner.lang or self.env.user.lang
-        
-        # Set the context to the partner's language
-        self = self.with_context(lang=partner_lang)
+        partner_lang = self._get_partner_lang()
         
         output = BytesIO()
-        workbook = xlsxwriter.Workbook(output)
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
         
-        field_names = self._get_report_field_names()
-        worksheet = workbook.add_worksheet(field_names['worksheet_name'])
+        worksheet = workbook.add_worksheet(self._get_report_worksheet_name())
 
-        config = self.env['import.format.config'].search([], limit=1)
-        
         # Define headers based on configuration
-        headers = [field.with_context(lang=partner_lang).name for field in config.report_field_ids.sorted(key=lambda r: r.sequence)]
-        _logger.info(f"Headers: {headers}")
-
-        # Write headers
-        for col, field_config in enumerate(config.report_field_ids.sorted(key=lambda r: r.sequence)):
-            worksheet.write(0, col, field_config.with_context(lang=partner_lang).name)
+        headers = self._get_report_headers(lang=partner_lang)
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header)
 
         # Collect and write data
         row = 1
         for line, move_line in self._get_report_lines():
-            _logger.info(f"Processing line: {line}, move_line: {move_line}")
             col = 0
-            for field_config in config.report_field_ids.sorted(key=lambda r: r.sequence):
-                value = self._get_field_value(line, move_line, field_config)
-                _logger.info(f"Field: {field_config.name}, Value: {value}")
-                worksheet.write(row, col, str(value) if value else '')
+            for field in self._get_report_fields():
+                value = self._get_field_value(line, move_line, field, lang=partner_lang)
+                worksheet.write(row, col, value if value else '')
                 col += 1
             row += 1
 
         workbook.close()
-        return output.getvalue()
+        excel_data = output.getvalue()
+        return base64.b64encode(excel_data)
 
-    def _get_report_lines(self):
-        # This method should be implemented in the inheriting models
-        raise NotImplementedError(_("This method must be implemented in the inheriting model"))
-
-    def _get_field_value(self, line, move_line, field_config):
-        if field_config.field_id.model == 'incoming.product.info':
+    def _get_field_value(self, line, move_line, field_config, lang):
+        self = self.with_context(lang=lang)
+        
+        if field_config.model == 'incoming.product.info':
             product = line.product_id
             sn = move_line.lot_id.name if move_line and move_line.lot_id else False
-    
             _logger.info(f"Searching for incoming info: product={product.name} (ID: {product.id}, Default Code: {product.default_code}), SN={sn}")
-    
+            
             incoming_info = self.env['incoming.product.info'].search([
                 ('sn', '=', sn),
                 '|',
                 ('product_id', '=', product.id),
                 ('product_id.product_tmpl_id', '=', product.product_tmpl_id.id)
             ], limit=1)
-    
+            
             if incoming_info:
                 if incoming_info.product_id.id != product.id:
                     _logger.info(f"Product variant mismatch, but template matches. IncomingProductInfo Product ID: {incoming_info.product_id.id}, Template ID: {incoming_info.product_id.product_tmpl_id.id}")
-                
                 _logger.info(f"Found incoming info: {incoming_info.name}")
-                field_name = field_config.field_id.name.lower()
+                field_name = field_config.name.lower()
                 value = getattr(incoming_info, field_name, '')
-                _logger.info(f"Field: {field_config.field_id.name}, Value: {value}")
+                _logger.info(f"Field: {field_config.name}, Value: {value}")
                 return value if value not in [False, 'False'] else ''
             else:
                 _logger.warning(f"No incoming info found for SN={sn} and Product Template ID={product.product_tmpl_id.id}")
                 return ''
-    
+        
         # Handle other field types here
-        if field_config.field_id.model == 'product.product':
-            value = getattr(line.product_id, field_config.field_id.name, '')
-        elif field_config.field_id.model == 'product.template':
-            value = getattr(line.product_id.product_tmpl_id, field_config.field_id.name, '')
-        elif field_config.field_id.model == 'sale.order.line':
-            value = getattr(line, field_config.field_id.name, '')
-        elif field_config.field_id.model == 'stock.move.line':
-            if field_config.field_id.name == 'lot_id':
+        if field_config.model == 'product.product':
+            value = getattr(line.product_id, field_config.name, '')
+        elif field_config.model == 'product.template':
+            value = getattr(line.product_id.product_tmpl_id, field_config.name, '')
+        elif field_config.model == 'sale.order.line':
+            value = getattr(line, field_config.name, '')
+        elif field_config.model == 'stock.move.line':
+            if field_config.name == 'lot_id':
                 value = move_line.lot_id.name if move_line and move_line.lot_id else ''
             else:
-                value = getattr(move_line, field_config.field_id.name, '') if move_line else ''
+                value = getattr(move_line, field_config.name, '') if move_line else ''
         else:
-            _logger.warning(f"No handler for field model: {field_config.field_id.model}")
+            _logger.warning(f"No handler for field model: {field_config.model}")
             value = ''
-    
-        return str(value) if value not in [False, 'False'] else ''
+        
+        # Format dates and datetimes according to the partner's language
+        if field_config.ttype == 'date':
+            return fields.Date.from_string(value) if value else ''
+        elif field_config.ttype == 'datetime':
+            return fields.Datetime.from_string(value) if value else ''
+        elif field_config.ttype in ['float', 'monetary']:
+            return float(value) if value not in [False, 'False', ''] else 0.0
+        elif field_config.ttype == 'integer':
+            return int(value) if value not in [False, 'False', ''] else 0
+        
+        return value if value not in [False, 'False'] else ''
 
     def _get_report_field_names(self):
         config = self.env['import.format.config'].search([], limit=1)

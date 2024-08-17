@@ -1,5 +1,5 @@
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 import logging
 import re
 
@@ -34,24 +34,16 @@ class IncomingProductInfo(models.Model):
         ('received', 'Received'),
     ], string='Status', default='pending')
     lot_id = fields.Many2one('stock.lot', string='Lot/Serial Number')
+    result_message = fields.Text(string='Import Result', readonly=True)
+
 
     @api.depends('supplier_product_code', 'sn')
     def _compute_name(self):
-        """
-        Compute the name of the incoming product info based on supplier product code and serial number.
-        """
         for record in self:
             record.name = f"{record.supplier_product_code or ''} - {record.sn or ''}"
 
     @api.model
     def _search_product(self, values, config):
-        """
-        Search for a product based on the provided values and configuration.
-    
-        :param values: A dictionary containing the product information
-        :param config: The import configuration record
-        :return: The found product record or False if not found
-        """
         try:
             _logger.info(f"Starting _search_product with values: {values}")
             supplier = config.supplier_id
@@ -97,7 +89,7 @@ class IncomingProductInfo(models.Model):
             _logger.info(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
             self._add_to_unmatched_models(values, config)
             return False
-		
+            
         except Exception as e:
             _logger.error(f"Error in _search_product: {str(e)}", exc_info=True)
             return False
@@ -116,7 +108,7 @@ class IncomingProductInfo(models.Model):
             return self.create(values), True  # True indicates it's a new record
 
     @api.model
-    def _match_serial_number(self, values, product):
+    def _check_serial_number(self, values, product):
         StockLot = self.env['stock.lot']
         existing_lot = StockLot.search([
             ('name', '=', values['sn']),
@@ -137,26 +129,23 @@ class IncomingProductInfo(models.Model):
             return new_lot, 'pending'
 
     def _check_combination_rules(self, values, config, supplier_and_contacts):
+        ImportCombinationRule = self.env['import.combination.rule']
         for rule in config.combination_rule_ids:
             field1_value = values.get(rule.field_1.destination_field_name)
             field2_value = values.get(rule.field_2.destination_field_name)
             
-            # Check if values match the rule
             if (field1_value == rule.value_1 or not rule.value_1) and (field2_value == rule.value_2 or not rule.value_2):
                 if rule.product_id:
-                    # Check if the product has a supplier that matches
                     matching_supplier = rule.product_id.seller_ids.filtered(
                         lambda s: s.partner_id in supplier_and_contacts
                     )
                     if matching_supplier:
-                        _logger.info(f"Matched product {rule.product_id.name} via Combination Rule: {rule.name}")
                         return rule.product_id
-        
-        _logger.info("No match found via Combination Rules")
         return False
 
     def _check_unmatched_model(self, model_no, config, supplier_and_contacts):
-        unmatched = self.env['unmatched.model.no'].search([
+        UnmatchedModelNo = self.env['unmatched.model.no']
+        unmatched = UnmatchedModelNo.search([
             ('config_id', '=', config.id),
             ('model_no', '=', model_no),
             ('supplier_id', 'in', supplier_and_contacts.ids),
@@ -172,7 +161,7 @@ class IncomingProductInfo(models.Model):
             ('config_id', '=', config.id),
             ('model_no', '=', model_no)
         ], limit=1)
-    
+
         if existing:
             existing.write({
                 'count': existing.count + 1,
@@ -184,10 +173,12 @@ class IncomingProductInfo(models.Model):
                 'supplier_id': config.supplier_id.id,
                 'model_no': model_no,
                 'pn': values.get('pn'),
-                'product_code': values.get('supplier_product_code') or model_no,
+                'product_code': values.get('supplier_product_code') or values.get('product_code') or model_no,
+                'supplier_product_code': values.get('supplier_product_code') or model_no,
                 'raw_data': str(values),
                 'count': 1
             })
+        _logger.info(f"Added/Updated Unmatched Model No: {model_no}")
 
     def _check_model_no_against_product_code(self, model_no, config, supplier_ids):
         domain = [
@@ -217,13 +208,14 @@ class IncomingProductInfo(models.Model):
         :raises ValidationError: If required fields are missing
         """
         for vals in vals_list:
-            if 'product_id' in vals and 'sn' in vals:
-                product = self.env['product.product'].browse(vals['product_id'])
-                lot, state = self._match_serial_number(vals, product)
-                vals['lot_id'] = lot.id
-                vals['state'] = state
+            # If state is not provided, default to 'pending'
+            if 'state' not in vals:
+                vals['state'] = 'pending'
+            
+            # Log the values for debugging
+            _logger.info(f"Creating IncomingProductInfo with values: {vals}")
 
-        return super().create(vals_list)
+        return super(IncomingProductInfo, self).create(vals_list)
 
     def write(self, vals):
         """

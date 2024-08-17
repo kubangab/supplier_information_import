@@ -63,7 +63,7 @@ def process_excel(file_content, chunk_size=1000):
     except Exception as e:
         raise UserError(_('Error processing Excel file: %s') % str(e))
 
-def log_and_notify(env, message, error_type="error"):
+def log_and_notify(message, error_type="error"):
     """
     Log a message using Odoo's logging system.
 
@@ -91,3 +91,11 @@ def collect_errors(errors):
     for index, row, error in errors:
         error_messages.append(_("Error at row {}: {}\nRow data: {}").format(index, error, row))
     return "\n\n".join(error_messages)
+
+def show_notification(env, message, title, type="info"):
+    env['bus.bus']._sendone(env.user.partner_id, 'simple_notification', {
+        'title': title,
+        'message': message,
+        'type': type,
+        'sticky': True,
+    })

@@ -1,10 +1,7 @@
 import base64
-import csv
-import io
-import xlrd
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-from ..models.utils import process_csv, process_excel, log_and_notify
+from ..models.utils import process_csv, process_excel
 
 class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
