@@ -57,41 +57,50 @@ class IncomingProductInfo(models.Model):
             ]
             supplier_and_contacts = self.env['res.partner'].search(supplier_domain)
             
-            model_no = values.get('model_no')
+            model_no = values.get('model_no', '')
+            model_no_lower = model_no.strip().lower()
             supplier_product_code = values.get('supplier_product_code') or model_no
-        
+            supplier_product_code_lower = supplier_product_code.strip().lower()
+    
             # 1. Check Combination Rules
-            rule_product, rule_found = self._check_combination_rules(values, config, supplier_and_contacts)
+            rule_product = self._check_combination_rules(values, config, supplier_and_contacts)
             if rule_product:
-                _logger.info(f"Product found via Combination Rules: {rule_product.name}")
-                return rule_product
-            elif rule_found:
-                _logger.info(f"Combination rule found but no product assigned for model_no: {model_no}")
-                return 'rule_without_product'
-        
+                if rule_product == 'rule_without_product':
+                    _logger.info(f"Combination rule found but no product assigned for model_no: {model_no}")
+                    return 'rule_without_product'
+                else:
+                    _logger.info(f"Product found via Combination Rules: {rule_product.name}")
+                    return rule_product
+    
             # 2. Check Unmatched Model No
             unmatched_product = self._check_unmatched_model(model_no, config, supplier_and_contacts)
             if unmatched_product:
                 _logger.info(f"Product found via Unmatched Model No: {unmatched_product.name}")
                 return unmatched_product
-        
+    
             # 3. Check against supplier product code
             domain = [
-                ('seller_ids.product_code', '=', supplier_product_code),
+                '|',
+                ('seller_ids.product_code', '=ilike', supplier_product_code_lower),
+                ('seller_ids.product_code', '=ilike', model_no_lower),
                 ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
             ]
-            
             products = self.env['product.product'].search(domain)
-            
+    
             if len(products) == 1:
+                _logger.info(f"Product found via supplier product code: {products.name}")
                 return products
             elif len(products) > 1:
                 _logger.warning(f"Multiple products found for supplier_product_code {supplier_product_code}. Treating as unmatched.")
                 return False
-            
+    
             _logger.info(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
-            return False
             
+            # 4. Add to unmatched models if no product found
+            self._add_to_unmatched_models(values, config)
+            
+            return False
+    
         except Exception as e:
             _logger.error(f"Error in _search_product: {str(e)}", exc_info=True)
             return False
@@ -133,20 +142,30 @@ class IncomingProductInfo(models.Model):
     def _check_combination_rules(self, values, config, supplier_and_contacts):
         ImportCombinationRule = self.env['import.combination.rule']
         for rule in config.combination_rule_ids:
-            field1_value = values.get(rule.field_1.destination_field_name)
-            field2_value = values.get(rule.field_2.destination_field_name)
+            field1_value = values.get(rule.field_1.destination_field_name, '').strip().lower()
+            field2_value = values.get(rule.field_2.destination_field_name, '').strip().lower()
             
-            if (field1_value == rule.value_1 or not rule.value_1) and (field2_value == rule.value_2 or not rule.value_2):
+            _logger.info(f"Checking rule: {rule.name}, Field1: {field1_value}, Field2: {field2_value}")
+            
+            if (rule.value_1.lower() in field1_value and rule.value_2.lower() in field2_value):
+                # Update the rule count
+                ImportCombinationRule.update_rule_count(rule.id, values.get('sn'))
+                
                 if rule.product_id:
                     matching_supplier = rule.product_id.seller_ids.filtered(
                         lambda s: s.partner_id in supplier_and_contacts
                     )
                     if matching_supplier:
-                        return rule.product_id, True
+                        _logger.info(f"Matched rule: {rule.name} for product: {rule.product_id.name}")
+                        return rule.product_id
+                    else:
+                        _logger.warning(f"Rule {rule.name} matched but no matching supplier found for product {rule.product_id.name}")
                 else:
-                    return False, True  # Rule found but no product assigned
-        return False, False  # No matching rule found
-
+                    _logger.info(f"Rule {rule.name} matched but no product assigned")
+                    return 'rule_without_product'
+        
+        _logger.info("No matching rule found")
+        return False
     def _check_unmatched_model(self, model_no, config, supplier_and_contacts):
         UnmatchedModelNo = self.env['unmatched.model.no']
         unmatched = UnmatchedModelNo.search([
@@ -158,43 +177,48 @@ class IncomingProductInfo(models.Model):
         return unmatched.product_id if unmatched else False
 
     @api.model
-    @api.model
     def _add_to_unmatched_models(self, values, config):
         UnmatchedModelNo = self.env['unmatched.model.no']
-        model_no = values.get('model_no')
+        model_no = values.get('model_no', '')
+        model_no_lower = model_no.strip().lower()
         existing = UnmatchedModelNo.search([
             ('config_id', '=', config.id),
-            ('model_no', '=', model_no)
+            ('model_no_lower', '=', model_no_lower)
         ], limit=1)
-
+    
         # Create a unique identifier for this row
-        row_identifier = f"{values.get('sn', '')}_{values.get('supplier_product_code', '')}"
-
+        row_identifier = f"{values.get('sn', '')}-{values.get('supplier_product_code', '')}"
+    
         if existing:
             # Load existing raw_data
             existing_data = json.loads(existing.raw_data) if existing.raw_data else {}
             
             if row_identifier not in existing_data:
                 existing_data[row_identifier] = values
+                
+                # Update the model_no with the new casing if it's different
+                if existing.model_no != model_no and model_no not in existing.model_no.split(' / '):
+                    existing.model_no = f"{existing.model_no} / {model_no}"
+                
                 existing.write({
                     'raw_data': json.dumps(existing_data),
                     'count': len(existing_data)
                 })
-                _logger.info(f"Updated unmatched model: {model_no}, new count: {len(existing_data)}")
+            _logger.info(f"Updated unmatched model: {existing.model_no}, new count: {len(existing_data)}")
         else:
             new_data = {row_identifier: values}
             UnmatchedModelNo.create({
                 'config_id': config.id,
                 'supplier_id': config.supplier_id.id,
                 'model_no': model_no,
-                'pn': values.get('pn'),
+                'model_no_lower': model_no_lower,
+                'pn': values.get('pn', ''),
                 'product_code': values.get('supplier_product_code') or values.get('product_code') or model_no,
                 'supplier_product_code': values.get('supplier_product_code') or model_no,
                 'raw_data': json.dumps(new_data),
                 'count': 1
             })
             _logger.info(f"Added new unmatched model: {model_no}")
-
     def _check_model_no_against_product_code(self, model_no, config, supplier_ids):
         domain = [
             ('seller_ids.name', 'in', supplier_ids),

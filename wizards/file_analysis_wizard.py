@@ -89,7 +89,7 @@ class FileAnalysisWizard(models.TransientModel):
         existing_rules = self.env['import.combination.rule'].search([
             ('config_id', '=', self.import_config_id.id)
         ])
-        existing_combinations = {(rule.value_1, rule.value_2) for rule in existing_rules}
+        existing_combinations = {(rule.value_1.lower(), rule.value_2.lower()) for rule in existing_rules}
     
         new_combinations = {}
         for chunk in data:
@@ -100,32 +100,37 @@ class FileAnalysisWizard(models.TransientModel):
                 if not val1 or not val2:
                     continue
                 
-                key = (val1, val2)
-                if key not in existing_combinations:
-                    new_combinations[key] = new_combinations.get(key, 0) + 1
+                key = val1.lower()
+                if key not in new_combinations:
+                    new_combinations[key] = {'values': set(), 'original': val1}
+                new_combinations[key]['values'].add((val2, val2.lower()))
     
-        filtered_combinations = {k: v for k, v in new_combinations.items() 
-                                 if len([c for c in new_combinations if c[0] == k[0]]) > 1}
+        result = [f"Analysis of {field1_label} and {field2_label} (Potential New Combination Rules):"]
+        filtered_combinations = {}
     
-        sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
+        for val1_lower, data in new_combinations.items():
+            val1 = data['original']
+            if len(data['values']) > 1:  # Only suggest rules for Field 1 with multiple Field 2 combinations
+                for val2, val2_lower in data['values']:
+                    if (val1_lower, val2_lower) not in existing_combinations:
+                        key = (val1, val2)
+                        if key not in filtered_combinations:
+                            filtered_combinations[key] = 1
+                            result.append(f"{field1_label}: {val1}, {field2_label}: {val2}")
     
-        result = [f"Analysis of {field1_label} and {field2_label} (New Combinations):"]
-        for (val1, val2), count in sorted_combinations:
-            result.append(f"{field1_label}: {val1}, {field2_label}: {val2} - Count: {count}")
-    
-        return "\n".join(result), dict(sorted_combinations)
-
+        return "\n".join(result), filtered_combinations
     def action_create_combination_rules(self):
         self.ensure_one()
-        filtered_combinations = eval(self.filtered_combinations)
+        new_combinations = eval(self.filtered_combinations)
         ImportCombinationRule = self.env['import.combination.rule']
         
-        created_count = 0
-        for (val1, val2), _ in filtered_combinations.items():
+        created_rules = 0
+    
+        for (val1, val2), _ in new_combinations.items():
             existing_rule = ImportCombinationRule.search([
                 ('config_id', '=', self.import_config_id.id),
-                ('value_1', '=', val1),
-                ('value_2', '=', val2)
+                ('value_1', '=ilike', val1),
+                ('value_2', '=ilike', val2)
             ], limit=1)
             
             if not existing_rule:
@@ -137,9 +142,9 @@ class FileAnalysisWizard(models.TransientModel):
                     'value_2': val2,
                     'name': f"{val1} - {val2}",
                 })
-                created_count += 1
-
-        message = [f"Created {created_count} new combination rules."]
+                created_rules += 1
+    
+        message = [f"Created {created_rules} new combination rules."]
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
