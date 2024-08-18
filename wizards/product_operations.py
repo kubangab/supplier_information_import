@@ -98,73 +98,106 @@ class ImportProductInfo(models.TransientModel):
     @api.model
     def process_rows(self, data, config):
         IncomingProductInfo = self.env['incoming.product.info']
+        UnmatchedModelNo = self.env['unmatched.model.no']
         
-        to_create = []
-        to_update = []
         unmatched_models = {}
         errors = []
         total_processed = 0
-    
+        total_created = 0
+        total_updated = 0
+        total_unmatched = 0
+        total_rule_without_product = 0
+        batch_size = 1000  # Define batch size
+
         for chunk in data:
+            create_vals = []
+            update_vals = []
+
             for index, row in enumerate(chunk, start=total_processed + 1):
                 try:
                     values = self._process_row_values(row, config)
                     
                     if 'model_no' not in values or 'sn' not in values:
+                        _logger.warning(f"Skipping row {index}: Missing model_no or sn")
                         continue
-    
+
                     product = IncomingProductInfo._search_product(values, config)
+                    if product == 'rule_without_product':
+                        total_rule_without_product += 1
+                        _logger.info(f"Rule found but no product assigned for row {index}")
+                        continue
+
                     if product:
                         values['product_id'] = product.id
                         values['supplier_id'] = config.supplier_id.id
                         if 'supplier_product_code' not in values:
                             values['supplier_product_code'] = values.get('model_no', '')
-    
+
                         existing_info = IncomingProductInfo.search([
                             ('supplier_id', '=', config.supplier_id.id),
                             ('sn', '=', values['sn'])
                         ], limit=1)
-    
+
                         if existing_info:
                             # If the record exists, keep its current state
                             values['state'] = existing_info.state
-                            to_update.append((existing_info, values))
+                            update_vals.append((existing_info.id, values))
                             _logger.info(f"Updating existing record for SN: {values['sn']}, State: {values['state']}")
                         else:
                             # For new records, set state to 'received' since we're importing existing data
                             values['state'] = 'received'
-                            to_create.append(values)
+                            create_vals.append(values)
                             _logger.info(f"Preparing to create new record for SN: {values['sn']}, State: received")
                     else:
+                        total_unmatched += 1
                         IncomingProductInfo._add_to_unmatched_models(values, config)
                         unmatched_models[values.get('model_no')] = unmatched_models.get(values.get('model_no'), 0) + 1
                         _logger.info(f"Added to unmatched models: {values.get('model_no')}")
-    
+
                 except Exception as e:
                     errors.append((index, row, str(e)))
-                    _logger.error(f"Error processing row {index}: {str(e)}")
-                
-                total_processed += 1
-    
-        _logger.info(f"Preparing to create {len(to_create)} new records and update {len(to_update)} existing records")
-    
-        # Batch create new records
-        created_records = IncomingProductInfo.create(to_create)
-        _logger.info(f"Actually created {len(created_records)} new records")
-    
-        # Batch update existing records
-        for record, values in to_update:
-            record.write(values)
-    
+                    _logger.error(f"Error processing row {index}: {str(e)}", exc_info=True)
+            
+            total_processed += len(chunk)
+            
+            # Batch create
+            if create_vals:
+                created_records = IncomingProductInfo.create(create_vals)
+                total_created += len(created_records)
+                _logger.info(f"Created {len(created_records)} new records in this batch")
+            
+            # Batch update
+            if update_vals:
+                for record_id, values in update_vals:
+                    IncomingProductInfo.browse(record_id).write(values)
+                total_updated += len(update_vals)
+                _logger.info(f"Updated {len(update_vals)} existing records in this batch")
+
+            # Process in batches
+            if total_created + total_updated >= batch_size:
+                self.env.cr.commit()  # Commit the transaction
+                _logger.info(f"Batch processed: Total Created {total_created}, Total Updated {total_updated}, "
+                             f"Total Unmatched {total_unmatched}, Total Rule Without Product {total_rule_without_product}")
+
+        # Get the final count of unmatched models
+        unmatched_count = UnmatchedModelNo.search_count([('config_id', '=', config.id)])
+        total_unmatched_rows = sum(UnmatchedModelNo.search([('config_id', '=', config.id)]).mapped('count'))
+
+        _logger.info(f"Final count - Processed {total_processed} rows, created {total_created} new records, "
+                     f"updated {total_updated} existing records, {unmatched_count} unique unmatched models "
+                     f"(total {total_unmatched_rows} unmatched rows), {total_rule_without_product} rows with rule but no product")
+
         if errors:
             error_message = collect_errors(errors)
-            log_and_notify(self.env, error_message, "warning")
-    
+            log_and_notify(error_message, "warning")
+
         return {
             'total': total_processed,
-            'created': len(created_records),
-            'updated': len(to_update),
-            'unmatched': sum(unmatched_models.values()),
+            'created': total_created,
+            'updated': total_updated,
+            'unmatched': unmatched_count,
+            'unmatched_rows': total_unmatched_rows,
+            'rule_without_product': total_rule_without_product,
             'errors': errors
         }
 
