@@ -2,6 +2,7 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import logging
 import re
+import json
 
 _logger = logging.getLogger(__name__)
 
@@ -60,10 +61,13 @@ class IncomingProductInfo(models.Model):
             supplier_product_code = values.get('supplier_product_code') or model_no
         
             # 1. Check Combination Rules
-            rule_product = self._check_combination_rules(values, config, supplier_and_contacts)
+            rule_product, rule_found = self._check_combination_rules(values, config, supplier_and_contacts)
             if rule_product:
                 _logger.info(f"Product found via Combination Rules: {rule_product.name}")
                 return rule_product
+            elif rule_found:
+                _logger.info(f"Combination rule found but no product assigned for model_no: {model_no}")
+                return 'rule_without_product'
         
             # 2. Check Unmatched Model No
             unmatched_product = self._check_unmatched_model(model_no, config, supplier_and_contacts)
@@ -82,12 +86,10 @@ class IncomingProductInfo(models.Model):
             if len(products) == 1:
                 return products
             elif len(products) > 1:
-                _logger.warning(f"Multiple products found for supplier_product_code {supplier_product_code}. Adding to Unmatched Model No.")
-                self._add_to_unmatched_models(values, config)
+                _logger.warning(f"Multiple products found for supplier_product_code {supplier_product_code}. Treating as unmatched.")
                 return False
             
             _logger.info(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
-            self._add_to_unmatched_models(values, config)
             return False
             
         except Exception as e:
@@ -140,8 +142,10 @@ class IncomingProductInfo(models.Model):
                         lambda s: s.partner_id in supplier_and_contacts
                     )
                     if matching_supplier:
-                        return rule.product_id
-        return False
+                        return rule.product_id, True
+                else:
+                    return False, True  # Rule found but no product assigned
+        return False, False  # No matching rule found
 
     def _check_unmatched_model(self, model_no, config, supplier_and_contacts):
         UnmatchedModelNo = self.env['unmatched.model.no']
@@ -154,6 +158,7 @@ class IncomingProductInfo(models.Model):
         return unmatched.product_id if unmatched else False
 
     @api.model
+    @api.model
     def _add_to_unmatched_models(self, values, config):
         UnmatchedModelNo = self.env['unmatched.model.no']
         model_no = values.get('model_no')
@@ -162,12 +167,22 @@ class IncomingProductInfo(models.Model):
             ('model_no', '=', model_no)
         ], limit=1)
 
+        # Create a unique identifier for this row
+        row_identifier = f"{values.get('sn', '')}_{values.get('supplier_product_code', '')}"
+
         if existing:
-            existing.write({
-                'count': existing.count + 1,
-                'raw_data': f"{existing.raw_data}\n{str(values)}"
-            })
+            # Load existing raw_data
+            existing_data = json.loads(existing.raw_data) if existing.raw_data else {}
+            
+            if row_identifier not in existing_data:
+                existing_data[row_identifier] = values
+                existing.write({
+                    'raw_data': json.dumps(existing_data),
+                    'count': len(existing_data)
+                })
+                _logger.info(f"Updated unmatched model: {model_no}, new count: {len(existing_data)}")
         else:
+            new_data = {row_identifier: values}
             UnmatchedModelNo.create({
                 'config_id': config.id,
                 'supplier_id': config.supplier_id.id,
@@ -175,10 +190,10 @@ class IncomingProductInfo(models.Model):
                 'pn': values.get('pn'),
                 'product_code': values.get('supplier_product_code') or values.get('product_code') or model_no,
                 'supplier_product_code': values.get('supplier_product_code') or model_no,
-                'raw_data': str(values),
+                'raw_data': json.dumps(new_data),
                 'count': 1
             })
-        _logger.info(f"Added/Updated Unmatched Model No: {model_no}")
+            _logger.info(f"Added new unmatched model: {model_no}")
 
     def _check_model_no_against_product_code(self, model_no, config, supplier_ids):
         domain = [
@@ -212,10 +227,15 @@ class IncomingProductInfo(models.Model):
             if 'state' not in vals:
                 vals['state'] = 'pending'
             
+            # Ensure supplier_product_code is set
+            if 'supplier_product_code' not in vals or not vals['supplier_product_code']:
+                vals['supplier_product_code'] = vals.get('model_no', '')
+
             # Log the values for debugging
             _logger.info(f"Creating IncomingProductInfo with values: {vals}")
 
         return super(IncomingProductInfo, self).create(vals_list)
+
 
     def write(self, vals):
         """

@@ -105,7 +105,7 @@ class FileAnalysisWizard(models.TransientModel):
                     new_combinations[key] = new_combinations.get(key, 0) + 1
     
         filtered_combinations = {k: v for k, v in new_combinations.items() 
-                                if len([c for c in new_combinations if c[0] == k[0]]) > 1}
+                                 if len([c for c in new_combinations if c[0] == k[0]]) > 1}
     
         sorted_combinations = sorted(filtered_combinations.items(), key=lambda x: x[0][0])
     
@@ -120,6 +120,7 @@ class FileAnalysisWizard(models.TransientModel):
         filtered_combinations = eval(self.filtered_combinations)
         ImportCombinationRule = self.env['import.combination.rule']
         
+        created_count = 0
         for (val1, val2), _ in filtered_combinations.items():
             existing_rule = ImportCombinationRule.search([
                 ('config_id', '=', self.import_config_id.id),
@@ -136,12 +137,15 @@ class FileAnalysisWizard(models.TransientModel):
                     'value_2': val2,
                     'name': f"{val1} - {val2}",
                 })
+                created_count += 1
 
+        message = [f"Created {created_count} new combination rules."]
         return {
-            'name': 'Combination Rules',
-            'type': 'ir.actions.act_window',
-            'res_model': 'import.combination.rule',
-            'view_mode': 'tree,form',
-            'domain': [('config_id', '=', self.import_config_id.id)],
-            'context': {'default_config_id': self.import_config_id.id},
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'message': message,
+                'type': 'success',
+                'sticky': False,
+            }
         }
