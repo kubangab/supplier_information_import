@@ -23,7 +23,6 @@ class ReportFieldConfig(models.Model):
 
     @api.model
     def _get_field_domain(self):
-        config_id = self._context.get('config_id')
         if not config_id:
             return []
         
