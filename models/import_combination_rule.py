@@ -56,11 +56,12 @@ class ImportCombinationRule(models.Model):
                 'applied_serial_numbers': json.dumps(applied_sns)
             })
     
-    @api.model
-    def create(self, vals):
-        if 'name' not in vals and 'value_1' in vals and 'value_2' in vals:
-            vals['name'] = f"{vals['value_1']} - {vals['value_2']}"
-        return super(ImportCombinationRule, self).create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if 'name' not in vals and 'value_1' in vals and 'value_2' in vals:
+                vals['name'] = f"{vals['value_1']} - {vals['value_2']}"
+        return super(ImportCombinationRule, self).create(vals_list)
 
     def write(self, vals):
         if 'value_1' in vals or 'value_2' in vals:
