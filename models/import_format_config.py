@@ -310,7 +310,7 @@ class ImportFormatConfig(models.Model):
                 ReportFieldConfig.create({
                     'config_id': self.id,
                     'field_id': field.id,
-                    'name': display_name,
+                    'name': field.field_description or field.name,
                     'sequence': len(self.report_field_ids) * 10,
                 })
         
