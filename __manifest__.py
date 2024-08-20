@@ -1,7 +1,7 @@
 #  © opyright 2024 Lasse Larsson, Kubang AB
 {
     'name': 'Supplier Information Import',
-    'version': '17.0.0.0.0',
+    'version': '17.0.0.0.1',
     'category': 'Inventory',
     'summary': 'Import and manage incoming product information',
     'description': """
@@ -21,6 +21,12 @@ This module allows importing product information from various suppliers and mana
         'views/stock_picking_views.xml',
         'views/sale_order_views.xml',
         'views/menu_views.xml',
+    ],
+    'test': [
+        'tests/test_import_format_config.py',
+        'tests/test_incoming_product_info.py',
+        'tests/test_file_analysis_wizard.py',
+        'tests/test_product_info_report.py',
     ],
     'installable': True,
     'application': False,

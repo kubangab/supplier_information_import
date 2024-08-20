@@ -5,6 +5,7 @@ class ImportColumnMapping(models.Model):
     _name = 'import.column.mapping'
     _description = 'Import Column Mapping'
 
+    display_name = fields.Char(string='Field Name', compute='_compute_name', store=True)
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
     source_column = fields.Char(string='Source Column Name', required=True)
     destination_field_name = fields.Selection(
@@ -18,6 +19,10 @@ class ImportColumnMapping(models.Model):
     is_required = fields.Boolean(string='Is Required', compute='_compute_is_required', store=True)
     is_readonly = fields.Boolean(string='Is Readonly', compute='_compute_is_readonly')
 
+    @api.depends('source_column', 'custom_label')
+    def _compute_name(self):
+        for record in self:
+            record.display_name = record.custom_label or record.source_column
     def name_get(self):
         return [(record.id, record.custom_label or record.source_column) for record in self]
 

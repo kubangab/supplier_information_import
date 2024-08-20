@@ -12,8 +12,20 @@ class FileAnalysisWizard(models.TransientModel):
     file = fields.Binary(string='File', required=True)
     file_name = fields.Char(string='File Name')
     file_type = fields.Selection(related='import_config_id.file_type', readonly=True)
-    field_ids = fields.Many2many('import.column.mapping', string='Fields to Analyze', 
-                                 domain="[('config_id', '=', import_config_id)]")
+    field_ids = fields.Many2many(
+        'import.column.mapping', 
+        string='Fields to Analyze',
+        compute='_compute_field_ids',
+        store=True,
+        readonly=False,
+    )
+
+    available_field_ids = fields.Many2many(
+        'import.column.mapping',
+        compute='_compute_available_fields',
+        store=False,
+    )
+
     field_names = fields.Char(compute='_compute_field_names', string='Available Fields')
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
     state = fields.Selection([('draft', 'Draft'), ('warning', 'Warning'), ('done', 'Done')], default='draft')
@@ -32,6 +44,26 @@ class FileAnalysisWizard(models.TransientModel):
         self.ensure_one()
         if self.import_config_id:
             self.field_ids = False
+
+    @api.depends('import_config_id')
+    def _compute_available_fields(self):
+        for record in self:
+            if record.import_config_id:
+                record.available_field_ids = record.import_config_id.column_mapping
+            else:
+                record.available_field_ids = self.env['import.column.mapping']
+
+    @api.depends('import_config_id')
+    def _compute_field_ids(self):
+        for record in self:
+            if record.import_config_id:
+                record.field_ids = record.import_config_id.column_mapping
+            else:
+                record.field_ids = self.env['import.column.mapping']
+
+    @api.onchange('import_config_id')
+    def _onchange_import_config_id(self):
+        self.field_ids = False
 
     def action_analyze_file(self):
         self.ensure_one()
