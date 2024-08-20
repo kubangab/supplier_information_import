@@ -1,5 +1,6 @@
 import base64
-from odoo import models, fields, api, _
+from odoo import models, fields, api
+from odoo.tools.translate import _
 from odoo.exceptions import UserError
 from ..models.utils import process_csv, process_excel
 
@@ -145,6 +146,7 @@ class FileAnalysisWizard(models.TransientModel):
                 created_rules += 1
     
         message = [f"Created {created_rules} new combination rules."]
+
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
