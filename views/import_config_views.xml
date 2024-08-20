@@ -13,13 +13,13 @@
                         <field name="sample_file" filename="sample_file_name"/>
                         <field name="sample_file_name" invisible="1"/>
                     </group>
-                    <notebook attrs="{'invisible': [('id', '=', False)]}">
+                    <notebook invisible="not id">
                         <page string="Column Mappings">
                             <field name="column_mapping">
                                 <tree editable="bottom">
                                     <field name="source_column" readonly="1"/>
                                     <field name="destination_field_name" widget="selection"/>
-                                    <field name="is_required" force_save="1" attrs="{'readonly': [('is_readonly', '=', True)]}"/>
+                                    <field name="is_required" force_save="1" readonly = "is_readonly"/>
                                     <field name="is_readonly" invisible="1"/>
                                 </tree>
                             </field>
@@ -49,7 +49,7 @@
                                     <field name="supplier_product_code"/>
                                     <field name="product_id" options="{'no_create': True}" domain="['|', '|', ('seller_ids.partner_id', '=', parent.supplier_id), ('seller_ids.partner_id', 'child_of', parent.supplier_id), ('seller_ids.partner_id', 'parent_of', parent.supplier_id)]"/>
                                     <field name="count" readonly="1"/>
-                                    <button name="action_link_product" string="Link Product" type="object" icon="fa-link" attrs="{'invisible': [('product_id', '=', False)]}"/>
+                                    <button name="action_link_product" string="Link Product" type="object" icon="fa-link" invisible="not product_id"/>
                                 </tree>
                             </field>
                         </page>
@@ -142,7 +142,7 @@
                 <field name="supplier_product_code" optional="hide"/>
                 <field name="product_id" options="{'no_create': True}" domain="[('type', '=', 'product')]"/>
                 <field name="count" optional="show"/>
-                <button name="action_link_product" string="Link Product" type="object" icon="fa-link" attrs="{'invisible': [('product_id', '=', False)]}"/>
+                <button name="action_link_product" string="Link Product" type="object" icon="fa-link" invisible="not product_id"/>
             </tree>
         </field>
     </record>

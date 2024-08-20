@@ -11,7 +11,7 @@
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
                 </group>
-                <div class="alert alert-info" role="alert" attrs="{'invisible': [('state', '!=', 'done')]}">
+                <div class="alert alert-info" role="alert" invisible="state != 'done'">
                     <field name="result_message" readonly="1"/>
                 </div>
                 <footer>
@@ -19,15 +19,15 @@
                             string="Import"
                             type="object" 
                             class="btn-primary" 
-                            attrs="{'invisible': [('state', '=', 'done')]}"/>
+                            invisible="state == 'done'"/>
                     <button string="Cancel" 
                             class="btn-secondary" 
                             special="cancel" 
-                            attrs="{'invisible': [('state', '=', 'done')]}"/>
+                            invisible="state == 'done'"/>
                     <button string="Close" 
                             class="btn-secondary" 
                             special="cancel"
-                            attrs="{'invisible': [('state', '!=', 'done')]}"/>
+                            invisible="state == 'done'"/>
                 </footer>
             </form>
         </field>
@@ -48,7 +48,9 @@
                 <group>
                     <field name="incoming_product_ids" widget="many2many_tags"/>
                     <field name="lot_creation_method" widget="radio"/>
-                    <field name="manual_lot_number" attrs="{'invisible': [('lot_creation_method', '!=', 'manual')], 'required': [('lot_creation_method', '=', 'manual')]}"/>
+                    <field name="manual_lot_number"
+                           invisible="lot_creation_method != 'manual'"
+                           required="lot_creation_method == 'manual'"/>
                 </group>
                 <footer>
                     <button name="action_receive_products" string="Receive Products" type="object" class="btn-primary"/>

@@ -9,7 +9,7 @@
                 <button name="action_generate_and_send_excel" 
                         string="Send Product Info" 
                         type="object"
-                        attrs="{'invisible': [('state', 'not in', ['sale', 'done'])]}"
+                        invisible="state not in ('sale', 'done')"
                         groups="stock.group_stock_user"/>
             </button>
         </field>

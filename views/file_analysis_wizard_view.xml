@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <form string="File Analysis">
                 <field name="state" invisible="1"/>
-                <div class="alert alert-warning" role="alert" attrs="{'invisible': [('state', '!=', 'warning')]}">
+                <div class="alert alert-warning" role="alert" invisible ="state != 'warning'">
                     <field name="warning_message" readonly="1"/>
                 </div>
                 <group>
@@ -19,7 +19,7 @@
                     <field name="filtered_combinations" invisible="1"/>
                 </group>
                 <group>
-                    <field name="analysis_result" readonly="1" attrs="{'invisible': [('analysis_result', '=', False)]}"/>
+                    <field name="analysis_result" readonly="1" invisible = "not analysis_result"/>
                 </group>
                 <footer>
                     <button name="action_analyze_file" string="Analyze" type="object" class="btn-primary"/>
@@ -27,7 +27,7 @@
                             string="Create Combination Rules" 
                             type="object" 
                             class="btn-secondary" 
-                            attrs="{'invisible': ['|', ('analysis_result', '=', False), ('filtered_combinations', '=', False)]}"/>
+                            invisible="not analysis_result and not filtered_combinations"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
