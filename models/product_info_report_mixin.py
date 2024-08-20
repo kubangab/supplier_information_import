@@ -1,6 +1,5 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-from odoo.tools.misc import format_date, format_datetime
 import base64
 import xlsxwriter
 from io import BytesIO
@@ -33,11 +32,11 @@ class ProductInfoReportMixin(models.AbstractModel):
 
     def action_generate_and_send_excel(self):
         self.ensure_one()
-        partner_lang = self._get_partner_lang()
-        
-        # Switch to the partner's language context
-        self = self.with_context(lang=partner_lang)
-        
+        user_lang = self.env.user.lang
+        partner = self.partner_id
+        partner_lang = partner.lang or user_lang
+
+        # Generate the Excel report
         excel_data = self.generate_excel_report()
         
         # Create attachment
@@ -46,10 +45,8 @@ class ProductInfoReportMixin(models.AbstractModel):
             'datas': excel_data,
             'res_model': self._name,
             'res_id': self.id,
-            'type': 'binary',
-            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-    
+
         # Determine the correct email template based on the model
         if self._name == 'sale.order':
             template = self.env.ref('supplier_information_import.email_template_product_info_sale_order')
@@ -57,38 +54,34 @@ class ProductInfoReportMixin(models.AbstractModel):
             template = self.env.ref('supplier_information_import.email_template_product_info_delivery')
         else:
             raise UserError(_("No email template found for this model."))
-        
-        # Prepare the email composer
-        compose_form = self.env.ref('mail.email_compose_message_wizard_form', False)
-        ctx = dict(
-            default_model=self._name,
-            default_res_id=self.id,
-            default_use_template=bool(template),
-            default_template_id=template.id,
-            default_composition_mode='comment',
-            mark_so_as_sent=True,
-            custom_layout="mail.mail_notification_paynow",
-            force_email=True,
-            default_attachment_ids=[(4, attachment.id)],
-            lang=partner_lang,  # Set the language for the email
-        )
-        
-        # Get the translated subject and body
-        template_ctx = dict(ctx, partner_ids=(self.partner_id.id,))
-        rendered_template = template.with_context(template_ctx).generate_email(self.id, ['subject', 'body_html'])
-        
-        ctx.update({
-            'default_subject': rendered_template.get('subject', ''),
-            'default_body': rendered_template.get('body_html', ''),
-        })
-        
+
+        # Render the email template
+        template = template.with_context(lang=partner_lang)
+        email_values = template.generate_email(self.id, ['subject', 'body_html'])
+
+        ctx = {
+            'default_model': self._name,
+            'default_res_id': self.id,
+            'default_use_template': True,
+            'default_template_id': template.id,
+            'default_composition_mode': 'comment',
+            'mark_so_as_sent': True,
+            'custom_layout': "mail.mail_notification_paynow",
+            'force_email': True,
+            'model_description': self.with_context(lang=partner_lang).type_name,
+            'default_attachment_ids': [(4, attachment.id)],
+            'default_partner_ids': [partner.id],
+            'default_subject': email_values['subject'],
+            'default_body': email_values['body_html'],
+            'lang': user_lang,  # Set the language in the context
+        }
+
         return {
-            'name': _('Compose Email'),
             'type': 'ir.actions.act_window',
             'view_mode': 'form',
             'res_model': 'mail.compose.message',
-            'views': [(compose_form.id, 'form')],
-            'view_id': compose_form.id,
+            'views': [(False, 'form')],
+            'view_id': False,
             'target': 'new',
             'context': ctx,
         }

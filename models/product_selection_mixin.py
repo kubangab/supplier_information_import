@@ -1,5 +1,6 @@
 from odoo import models, fields, api
 
+
 class ProductSelectionMixin(models.AbstractModel):
     _name = 'product.selection.mixin'
     _description = 'Product Selection Mixin'
