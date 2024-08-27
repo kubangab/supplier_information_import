@@ -1,5 +1,5 @@
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
+from .utils import preprocess_field_value
 import logging
 import re
 import json
@@ -139,11 +139,12 @@ class IncomingProductInfo(models.Model):
             _logger.info(f"Created new lot for SN: {values['sn']}")
             return new_lot, 'pending'
 
+    @api.model
     def _check_combination_rules(self, values, config, supplier_and_contacts):
         ImportCombinationRule = self.env['import.combination.rule']
         for rule in config.combination_rule_ids:
             field1_value = values.get(rule.field_1.destination_field_name, '').strip().lower()
-            field2_value = values.get(rule.field_2.destination_field_name, '').strip().lower()
+            field2_value = preprocess_field_value(values.get(rule.field_2.destination_field_name, '').strip()).lower()
             
             _logger.info(f"Checking rule: {rule.name}, Field1: {field1_value}, Field2: {field2_value}")
             
@@ -166,6 +167,7 @@ class IncomingProductInfo(models.Model):
         
         _logger.info("No matching rule found")
         return False
+
     def _check_unmatched_model(self, model_no, config, supplier_and_contacts):
         UnmatchedModelNo = self.env['unmatched.model.no']
         unmatched = UnmatchedModelNo.search([

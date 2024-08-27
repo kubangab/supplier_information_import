@@ -2,7 +2,7 @@ import base64
 from odoo import models, fields, api
 from odoo.tools.translate import _
 from odoo.exceptions import UserError
-from ..models.utils import process_csv, process_excel
+from ..models.utils import process_csv, process_excel, preprocess_field_value
 
 class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
@@ -35,6 +35,7 @@ class FileAnalysisWizard(models.TransientModel):
 
     def action_analyze_file(self):
         self.ensure_one()
+        _logger.info("Starting file analysis")
         if not self.file:
             self.write({'state': 'warning', 'warning_message': _("Please select a file.")})
             return self._reopen_view()
@@ -46,15 +47,18 @@ class FileAnalysisWizard(models.TransientModel):
         
         try:
             if self.file_type == 'csv':
+                _logger.info("Processing CSV file")
                 data = process_csv(file_content)
             elif self.file_type == 'excel':
+                _logger.info("Processing Excel file")
                 data = process_excel(file_content)
             else:
                 raise UserError(_("Unsupported file format."))
-    
+
             if not data:
                 raise UserError(_("No data found in the file."))
-    
+
+            _logger.info("Calling _analyze_data method")
             analysis_result, filtered_combinations = self._analyze_data(data)
     
             self.write({
@@ -66,6 +70,7 @@ class FileAnalysisWizard(models.TransientModel):
             return self._reopen_view()
     
         except Exception as e:
+            _logger.error(f"Error during file analysis: {str(e)}", exc_info=True)
             self.write({'state': 'warning', 'warning_message': _(f"Error during file analysis: {str(e)}")})
             return self._reopen_view()
 
@@ -81,45 +86,54 @@ class FileAnalysisWizard(models.TransientModel):
         }
 
     def _analyze_data(self, data):
+        _logger.info("Inside _analyze_data method")
         field1, field2 = self.field_ids
         field1_name = field1.source_column
         field2_name = field2.source_column
         field1_label = field1.custom_label or field1.source_column
         field2_label = field2.custom_label or field2.source_column
-    
+
+        _logger.info(f"Analyzing fields: {field1_name} and {field2_name}")
+
         existing_rules = self.env['import.combination.rule'].search([
             ('config_id', '=', self.import_config_id.id)
         ])
         existing_combinations = {(rule.value_1.lower(), rule.value_2.lower()) for rule in existing_rules}
-    
+
         new_combinations = {}
         for chunk in data:
             for row in chunk:
                 val1 = row.get(field1_name, '').strip()
-                val2 = row.get(field2_name, '').strip()
+                val2 = preprocess_field_value(row.get(field2_name, '').strip())
                 
-                if not val1 or not val2:
+                _logger.info(f"Processing row: {field1_name}={val1}, {field2_name}={val2}")
+                
+                if not val1 or val2 == 'Zero':
+                    _logger.info(f"Skipping row: {field1_name}={val1}, {field2_name}={val2}")
                     continue
                 
                 key = val1.lower()
                 if key not in new_combinations:
                     new_combinations[key] = {'values': set(), 'original': val1}
                 new_combinations[key]['values'].add((val2, val2.lower()))
-    
+
         result = [f"Analysis of {field1_label} and {field2_label} (Potential New Combination Rules):"]
         filtered_combinations = {}
-    
+
         for val1_lower, data in new_combinations.items():
             val1 = data['original']
-            if len(data['values']) > 1:  # Only suggest rules for Field 1 with multiple Field 2 combinations
+            if len(data['values']) > 1:
                 for val2, val2_lower in data['values']:
                     if (val1_lower, val2_lower) not in existing_combinations:
                         key = (val1, val2)
                         if key not in filtered_combinations:
                             filtered_combinations[key] = 1
                             result.append(f"{field1_label}: {val1}, {field2_label}: {val2}")
-    
+
+        _logger.info(f"Analysis result: {result}")
+        _logger.info(f"Filtered combinations: {filtered_combinations}")
         return "\n".join(result), filtered_combinations
+
     def action_create_combination_rules(self):
         self.ensure_one()
         new_combinations = eval(self.filtered_combinations)

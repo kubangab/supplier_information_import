@@ -99,3 +99,12 @@ def show_notification(env, message, title, type="info"):
         'type': type,
         'sticky': True,
     })
+
+def preprocess_field_value(value):
+    """
+    Preprocess the field value, replacing empty strings or '0' with 'Zero'.
+    """
+    if value in ('', '0'):
+        _logger.info(f"Replacing empty string or '0' with 'Zero' for value: {value}")
+        return 'Zero'
+    return value

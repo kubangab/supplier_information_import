@@ -2,7 +2,7 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import base64
 import logging
-from ..models.utils import process_csv, process_excel, log_and_notify, collect_errors
+from ..models.utils import process_csv, process_excel, log_and_notify, collect_errors, preprocess_field_value
 
 _logger = logging.getLogger(__name__)
 
@@ -209,6 +209,9 @@ class ImportProductInfo(models.TransientModel):
             source_value = row.get(source_column, '').strip()
             
             if dest_field and source_value:
+                # Preprocess the value if it's the second field (assuming it's always the second field)
+                if mapping == config.column_mapping[1]:
+                    source_value = preprocess_field_value(source_value)
                 values[dest_field] = source_value
                 _logger.info(f"Mapped '{source_column}' to '{dest_field}': {source_value}")
             elif dest_field:
