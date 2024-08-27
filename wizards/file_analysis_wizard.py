@@ -97,14 +97,14 @@ class FileAnalysisWizard(models.TransientModel):
         field2_name = field2.source_column
         field1_label = field1.custom_label or field1.source_column
         field2_label = field2.custom_label or field2.source_column
-
+    
         _logger.info(f"Analyzing fields: {field1_name} and {field2_name}")
-
+    
         existing_rules = self.env['import.combination.rule'].search([
             ('config_id', '=', self.import_config_id.id)
         ])
         existing_combinations = {(rule.value_1.lower(), rule.value_2.lower()) for rule in existing_rules}
-
+    
         new_combinations = {}
         for chunk in data:
             for row in chunk:
@@ -113,28 +113,28 @@ class FileAnalysisWizard(models.TransientModel):
                 
                 _logger.info(f"Processing row: {field1_name}={val1}, {field2_name}={val2}")
                 
-                if not val1 or val2 == 'Zero':
-                    _logger.info(f"Skipping row: {field1_name}={val1}, {field2_name}={val2}")
+                if not val1:  # Only skip if val1 is empty
+                    _logger.info(f"Skipping row due to empty {field1_name}: {field1_name}={val1}, {field2_name}={val2}")
                     continue
                 
                 key = val1.lower()
                 if key not in new_combinations:
                     new_combinations[key] = {'values': set(), 'original': val1}
                 new_combinations[key]['values'].add((val2, val2.lower()))
-
+    
         result = [f"Analysis of {field1_label} and {field2_label} (Potential New Combination Rules):"]
         filtered_combinations = {}
-
+    
         for val1_lower, data in new_combinations.items():
             val1 = data['original']
-            if len(data['values']) > 1:
+            if len(data['values']) > 1:  # Only suggest rules for Field 1 with multiple Field 2 combinations
                 for val2, val2_lower in data['values']:
                     if (val1_lower, val2_lower) not in existing_combinations:
                         key = (val1, val2)
                         if key not in filtered_combinations:
                             filtered_combinations[key] = 1
                             result.append(f"{field1_label}: {val1}, {field2_label}: {val2}")
-
+    
         _logger.info(f"Analysis result: {result}")
         _logger.info(f"Filtered combinations: {filtered_combinations}")
         return "\n".join(result), filtered_combinations
