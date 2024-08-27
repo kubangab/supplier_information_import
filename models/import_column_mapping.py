@@ -116,3 +116,8 @@ class ImportColumnMapping(models.Model):
                 ])
                 if same_label:
                     raise ValidationError(_("Custom label must be unique per configuration for non-custom fields."))
+
+    @api.depends('custom_label', 'source_column')
+    def _compute_name(self):
+        for record in self:
+            record.name = record.custom_label or record.source_column or 'Unnamed Mapping'
