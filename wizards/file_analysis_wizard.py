@@ -3,6 +3,10 @@ from odoo import models, fields, api
 from odoo.tools.translate import _
 from odoo.exceptions import UserError
 from ..models.utils import process_csv, process_excel, preprocess_field_value
+import logging
+
+_logger = logging.getLogger(__name__)
+
 
 class FileAnalysisWizard(models.TransientModel):
     _name = 'file.analysis.wizard'
@@ -35,7 +39,8 @@ class FileAnalysisWizard(models.TransientModel):
 
     def action_analyze_file(self):
         self.ensure_one()
-        _logger.info("Starting file analysis")
+        _logger.info("action_analyze_file method called")
+        _logger.info("File name: %s", self.file_name)
         if not self.file:
             self.write({'state': 'warning', 'warning_message': _("Please select a file.")})
             return self._reopen_view()
