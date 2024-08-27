@@ -97,14 +97,18 @@ class FileAnalysisWizard(models.TransientModel):
         field2_name = field2.source_column
         field1_label = field1.custom_label or field1.source_column
         field2_label = field2.custom_label or field2.source_column
-    
+
         _logger.info(f"Analyzing fields: {field1_name} and {field2_name}")
-    
-        existing_rules = self.env['import.combination.rule'].search([
-            ('config_id', '=', self.import_config_id.id)
-        ])
-        existing_combinations = {(rule.value_1.lower(), rule.value_2.lower()) for rule in existing_rules}
-    
+
+        ImportCombinationRule = self.env['import.combination.rule']
+        UnmatchedModelNo = self.env['unmatched.model.no']
+
+        existing_rules = ImportCombinationRule.search([('config_id', '=', self.import_config_id.id)])
+        existing_combinations = {(rule.value_1.lower(), rule.value_2.lower()): rule for rule in existing_rules}
+
+        unmatched_models = UnmatchedModelNo.search([('config_id', '=', self.import_config_id.id)])
+        unmatched_dict = {model.model_no.lower(): model for model in unmatched_models}
+
         new_combinations = {}
         for chunk in data:
             for row in chunk:
@@ -113,58 +117,82 @@ class FileAnalysisWizard(models.TransientModel):
                 
                 _logger.info(f"Processing row: {field1_name}={val1}, {field2_name}={val2}")
                 
-                if not val1:  # Only skip if val1 is empty
-                    _logger.info(f"Skipping row due to empty {field1_name}: {field1_name}={val1}, {field2_name}={val2}")
+                if not val1:
+                    _logger.info(f"Skipping row due to empty {field1_name}")
                     continue
                 
                 key = val1.lower()
                 if key not in new_combinations:
                     new_combinations[key] = {'values': set(), 'original': val1}
                 new_combinations[key]['values'].add((val2, val2.lower()))
-    
+
         result = [f"Analysis of {field1_label} and {field2_label} (Potential New Combination Rules):"]
         filtered_combinations = {}
-    
+        unmatched_to_move = {}
+
         for val1_lower, data in new_combinations.items():
             val1 = data['original']
-            if len(data['values']) > 1:  # Only suggest rules for Field 1 with multiple Field 2 combinations
+            if len(data['values']) > 1:
                 for val2, val2_lower in data['values']:
                     if (val1_lower, val2_lower) not in existing_combinations:
                         key = (val1, val2)
-                        if key not in filtered_combinations:
+                        if val1_lower in unmatched_dict:
+                            if val1_lower not in unmatched_to_move:
+                                unmatched_to_move[val1_lower] = unmatched_dict[val1_lower]
+                            filtered_combinations[key] = 1
+                            result.append(f"{field1_label}: {val1}, {field2_label}: {val2} (Moved from Unmatched)")
+                        else:
                             filtered_combinations[key] = 1
                             result.append(f"{field1_label}: {val1}, {field2_label}: {val2}")
-    
+            elif val1_lower in existing_combinations:
+                existing_val2 = next(iter(existing_combinations[val1_lower].values()))
+                if data['values'] != {existing_val2}:
+                    for val2, val2_lower in data['values']:
+                        if (val1_lower, val2_lower) not in existing_combinations:
+                            key = (val1, val2)
+                            filtered_combinations[key] = 1
+                            result.append(f"{field1_label}: {val1}, {field2_label}: {val2} (New combination)")
+
         _logger.info(f"Analysis result: {result}")
         _logger.info(f"Filtered combinations: {filtered_combinations}")
-        return "\n".join(result), filtered_combinations
+        _logger.info(f"Unmatched to move: {unmatched_to_move}")
+        return "\n".join(result), filtered_combinations, unmatched_to_move
 
     def action_create_combination_rules(self):
         self.ensure_one()
-        new_combinations = eval(self.filtered_combinations)
         ImportCombinationRule = self.env['import.combination.rule']
-        
+        UnmatchedModelNo = self.env['unmatched.model.no']
+
+        analysis_result, filtered_combinations, unmatched_to_move = self._analyze_data(self._get_file_content())
+
         created_rules = 0
-    
-        for (val1, val2), _ in new_combinations.items():
-            existing_rule = ImportCombinationRule.search([
-                ('config_id', '=', self.import_config_id.id),
-                ('value_1', '=ilike', val1),
-                ('value_2', '=ilike', val2)
-            ], limit=1)
-            
-            if not existing_rule:
-                ImportCombinationRule.create({
-                    'config_id': self.import_config_id.id,
-                    'field_1': self.field_ids[0].id,
-                    'field_2': self.field_ids[1].id,
-                    'value_1': val1,
-                    'value_2': val2,
-                    'name': f"{val1} - {val2}",
-                })
-                created_rules += 1
-    
+        for (val1, val2), _ in filtered_combinations.items():
+            ImportCombinationRule.create({
+                'config_id': self.import_config_id.id,
+                'field_1': self.field_ids[0].id,
+                'field_2': self.field_ids[1].id,
+                'value_1': val1,
+                'value_2': val2,
+                'name': f"{val1} - {val2}",
+            })
+            created_rules += 1
+
+        # Move unmatched models to combination rules
+        for unmatched_model in unmatched_to_move.values():
+            ImportCombinationRule.create({
+                'config_id': self.import_config_id.id,
+                'field_1': self.field_ids[0].id,
+                'field_2': self.field_ids[1].id,
+                'value_1': unmatched_model.model_no,
+                'value_2': unmatched_model.pn,
+                'name': f"{unmatched_model.model_no} - {unmatched_model.pn}",
+            })
+            unmatched_model.unlink()
+            created_rules += 1
+
         message = [f"Created {created_rules} new combination rules."]
+        if unmatched_to_move:
+            message.append(f"Moved {len(unmatched_to_move)} unmatched models to combination rules.")
 
         return {
             'type': 'ir.actions.client',

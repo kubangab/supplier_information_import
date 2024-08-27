@@ -57,53 +57,59 @@ class IncomingProductInfo(models.Model):
             ]
             supplier_and_contacts = self.env['res.partner'].search(supplier_domain)
             
-            model_no = values.get('model_no', '')
-            model_no_lower = model_no.strip().lower()
-            supplier_product_code = values.get('supplier_product_code') or model_no
-            supplier_product_code_lower = supplier_product_code.strip().lower()
+            # Get the field names from the config
+            field1_name = config.column_mapping.filtered(lambda m: m.id == config.combination_rule_ids[0].field_1.id).destination_field_name
+            field2_name = config.column_mapping.filtered(lambda m: m.id == config.combination_rule_ids[0].field_2.id).destination_field_name
+            
+            field1_value = values.get(field1_name, '').strip()
+            field2_value = values.get(field2_name, '').strip()
+            field1_value_lower = field1_value.lower()
+            field2_value_lower = field2_value.lower()
     
-            # 1. Check Combination Rules
-            rule_product = self._check_combination_rules(values, config, supplier_and_contacts)
-            if rule_product:
-                if rule_product == 'rule_without_product':
-                    _logger.info(f"Combination rule found but no product assigned for model_no: {model_no}")
-                    return 'rule_without_product'
+            _logger.info(f"Searching with Field1: {field1_name}={field1_value}, Field2: {field2_name}={field2_value}")
+    
+            # Check Combination Rules
+            rule_result, new_rule = self._check_combination_rules(values, config, supplier_and_contacts, field1_name, field2_name)
+            if rule_result:
+                if rule_result == 'rule_without_product':
+                    _logger.info(f"Combination rule found but no product assigned for {field1_name}: {field1_value}")
+                    return 'rule_without_product', new_rule
                 else:
-                    _logger.info(f"Product found via Combination Rules: {rule_product.name}")
-                    return rule_product
+                    _logger.info(f"Product found via Combination Rules: {rule_result.name}")
+                    return rule_result, new_rule
     
-            # 2. Check Unmatched Model No
-            unmatched_product = self._check_unmatched_model(model_no, config, supplier_and_contacts)
+            # Check Unmatched Model No
+            unmatched_product = self._check_unmatched_model(field1_value, config, supplier_and_contacts)
             if unmatched_product:
                 _logger.info(f"Product found via Unmatched Model No: {unmatched_product.name}")
-                return unmatched_product
+                return unmatched_product, False
     
-            # 3. Check against supplier product code
+            # Check against supplier product code
             domain = [
                 '|',
-                ('seller_ids.product_code', '=ilike', supplier_product_code_lower),
-                ('seller_ids.product_code', '=ilike', model_no_lower),
+                ('seller_ids.product_code', '=ilike', field1_value_lower),
+                ('seller_ids.product_code', '=ilike', field2_value_lower),
                 ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
             ]
             products = self.env['product.product'].search(domain)
     
             if len(products) == 1:
                 _logger.info(f"Product found via supplier product code: {products.name}")
-                return products
+                return products, False
             elif len(products) > 1:
-                _logger.warning(f"Multiple products found for supplier_product_code {supplier_product_code}. Treating as unmatched.")
-                return False
+                _logger.warning(f"Multiple products found for {field1_name} {field1_value}. Treating as unmatched.")
+                return False, False
     
-            _logger.info(f"No product found for model_no {model_no} and supplier_product_code {supplier_product_code}")
+            _logger.info(f"No product found for {field1_name} {field1_value} and {field2_name} {field2_value}")
             
-            # 4. Add to unmatched models if no product found
+            # Add to unmatched models if no product found
             self._add_to_unmatched_models(values, config)
             
-            return False
+            return False, False
     
         except Exception as e:
             _logger.error(f"Error in _search_product: {str(e)}", exc_info=True)
-            return False
+            return False, False
 
     @api.model
     def find_or_create(self, values):
@@ -139,34 +145,46 @@ class IncomingProductInfo(models.Model):
             _logger.info(f"Created new lot for SN: {values['sn']}")
             return new_lot, 'pending'
 
-    @api.model
-    def _check_combination_rules(self, values, config, supplier_and_contacts):
+    def _check_combination_rules(self, values, config, supplier_and_contacts, field1_name, field2_name):
         ImportCombinationRule = self.env['import.combination.rule']
-        for rule in config.combination_rule_ids:
-            field1_value = values.get(rule.field_1.destination_field_name, '').strip().lower()
-            field2_value = preprocess_field_value(values.get(rule.field_2.destination_field_name, '').strip()).lower()
-            
-            _logger.info(f"Checking rule: {rule.name}, Field1: {field1_value}, Field2: {field2_value}")
-            
-            if (rule.value_1.lower() in field1_value and rule.value_2.lower() in field2_value):
-                # Update the rule count
-                ImportCombinationRule.update_rule_count(rule.id, values.get('sn'))
-                
-                if rule.product_id:
-                    matching_supplier = rule.product_id.seller_ids.filtered(
-                        lambda s: s.partner_id in supplier_and_contacts
-                    )
-                    if matching_supplier:
-                        _logger.info(f"Matched rule: {rule.name} for product: {rule.product_id.name}")
-                        return rule.product_id
-                    else:
-                        _logger.warning(f"Rule {rule.name} matched but no matching supplier found for product {rule.product_id.name}")
-                else:
-                    _logger.info(f"Rule {rule.name} matched but no product assigned")
-                    return 'rule_without_product'
-        
+        field1_value = values.get(field1_name, '').strip().lower()
+        field2_value = values.get(field2_name, '').strip().lower()
+    
+        _logger.info(f"Checking combination rules for Field1: {field1_value}, Field2: {field2_value}")
+    
+        # Check if the combination already exists
+        existing_rule = ImportCombinationRule.search([
+            ('config_id', '=', config.id),
+            ('value_1', '=ilike', field1_value),
+            ('value_2', '=ilike', field2_value)
+        ], limit=1)
+    
+        if existing_rule:
+            _logger.info(f"Existing rule found: {existing_rule.name}")
+            ImportCombinationRule.update_rule_count(existing_rule.id, values.get('sn'))
+            return existing_rule.product_id or 'rule_without_product', False
+    
+        # Check for partial matches (same Field1, different Field2)
+        partial_match_rules = ImportCombinationRule.search([
+            ('config_id', '=', config.id),
+            ('value_1', '=ilike', field1_value)
+        ])
+    
+        if partial_match_rules:
+            _logger.info(f"New combination found for existing Field 1: {field1_value}, Field 2: {field2_value}")
+            new_rule = ImportCombinationRule.create({
+                'config_id': config.id,
+                'field_1': partial_match_rules[0].field_1.id,
+                'field_2': partial_match_rules[0].field_2.id,
+                'value_1': values.get(field1_name),
+                'value_2': values.get(field2_name),
+                'name': f"{values.get(field1_name)} - {values.get(field2_name)}",
+            })
+            ImportCombinationRule.update_rule_count(new_rule.id, values.get('sn'))
+            return 'rule_without_product', new_rule
+    
         _logger.info("No matching rule found")
-        return False
+        return False, False
 
     def _check_unmatched_model(self, model_no, config, supplier_and_contacts):
         UnmatchedModelNo = self.env['unmatched.model.no']

@@ -14,6 +14,9 @@
                 <div class="alert alert-info" role="alert" attrs="{'invisible': [('state', '!=', 'done')]}">
                     <field name="result_message" readonly="1"/>
                 </div>
+                <div class="alert alert-info" role="alert" attrs="{'invisible': [('new_combination_rules', '=', False)]}">
+                    <field name="new_combination_rules" readonly="1"/>
+                </div>
                 <footer>
                     <button name="import_file" 
                             string="Import"
