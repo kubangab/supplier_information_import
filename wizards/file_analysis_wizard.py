@@ -37,6 +37,7 @@ class FileAnalysisWizard(models.TransientModel):
         if self.import_config_id:
             self.field_ids = False
 
+    @api.model
     def action_analyze_file(self):
         self.ensure_one()
         _logger.info("action_analyze_file method called")
@@ -59,12 +60,12 @@ class FileAnalysisWizard(models.TransientModel):
                 data = process_excel(file_content)
             else:
                 raise UserError(_("Unsupported file format."))
-
+    
             if not data:
                 raise UserError(_("No data found in the file."))
-
+    
             _logger.info("Calling _analyze_data method")
-            analysis_result, filtered_combinations = self._analyze_data(data)
+            analysis_result, filtered_combinations, unmatched_to_move = self._analyze_data(data)
     
             self.write({
                 'analysis_result': analysis_result,
@@ -75,8 +76,9 @@ class FileAnalysisWizard(models.TransientModel):
             return self._reopen_view()
     
         except Exception as e:
-            _logger.error(f"Error during file analysis: {str(e)}", exc_info=True)
-            self.write({'state': 'warning', 'warning_message': _(f"Error during file analysis: {str(e)}")})
+            error_message = _("Error during file analysis: {}").format(str(e))
+            _logger.error(error_message, exc_info=True)
+            self.write({'state': 'warning', 'warning_message': error_message})
             return self._reopen_view()
 
     def _reopen_view(self):
@@ -161,10 +163,9 @@ class FileAnalysisWizard(models.TransientModel):
     def action_create_combination_rules(self):
         self.ensure_one()
         ImportCombinationRule = self.env['import.combination.rule']
-        UnmatchedModelNo = self.env['unmatched.model.no']
-
-        analysis_result, filtered_combinations, unmatched_to_move = self._analyze_data(self._get_file_content())
-
+    
+        _, filtered_combinations, unmatched_to_move = self._analyze_data(self._get_file_content())
+    
         created_rules = 0
         for (val1, val2), _ in filtered_combinations.items():
             ImportCombinationRule.create({
@@ -176,7 +177,7 @@ class FileAnalysisWizard(models.TransientModel):
                 'name': f"{val1} - {val2}",
             })
             created_rules += 1
-
+    
         # Move unmatched models to combination rules
         for unmatched_model in unmatched_to_move.values():
             ImportCombinationRule.create({
@@ -189,11 +190,11 @@ class FileAnalysisWizard(models.TransientModel):
             })
             unmatched_model.unlink()
             created_rules += 1
-
+    
         message = [f"Created {created_rules} new combination rules."]
         if unmatched_to_move:
             message.append(f"Moved {len(unmatched_to_move)} unmatched models to combination rules.")
-
+    
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',

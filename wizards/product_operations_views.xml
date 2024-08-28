@@ -6,17 +6,12 @@
         <field name="arch" type="xml">
             <form string="Import Product Information">
                 <field name="state" invisible="1"/>
+
                 <group>
                     <field name="import_config_id"/>
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
                 </group>
-                <div class="alert alert-info" role="alert" attrs="{'invisible': [('state', '!=', 'done')]}">
-                    <field name="result_message" readonly="1"/>
-                </div>
-                <div class="alert alert-info" role="alert" attrs="{'invisible': [('new_combination_rules', '=', False)]}">
-                    <field name="new_combination_rules" readonly="1"/>
-                </div>
                 <footer>
                     <button name="import_file" 
                             string="Import"
@@ -25,13 +20,16 @@
                             attrs="{'invisible': [('state', '=', 'done')]}"/>
                     <button string="Cancel" 
                             class="btn-secondary" 
-                            special="cancel" 
+                            special="cancel"
                             attrs="{'invisible': [('state', '=', 'done')]}"/>
                     <button string="Close" 
                             class="btn-secondary" 
                             special="cancel"
                             attrs="{'invisible': [('state', '!=', 'done')]}"/>
                 </footer>
+                <div class="alert alert-info" role="alert" attrs="{'invisible': [('state', '!=', 'done')]}">
+                    <field name="result_message" readonly="1"/>
+                </div>
             </form>
         </field>
     </record>

@@ -32,59 +32,73 @@ class ImportProductInfo(models.TransientModel):
         file_content = base64.b64decode(self.file)
         
         try:
-            if config.file_type == 'csv':
-                data = process_csv(file_content)
-            elif config.file_type == 'excel':
-                data = process_excel(file_content)
-            else:
-                raise UserError(_('Unsupported file format. Please use CSV or Excel files.'))
+            # Start a new transaction
+            self.env.cr.rollback()
+            with self.env.cr.savepoint():
+                if config.file_type == 'csv':
+                    data = process_csv(file_content)
+                elif config.file_type == 'excel':
+                    data = process_excel(file_content)
+                else:
+                    raise UserError(_('Unsupported file format. Please use CSV or Excel files.'))
     
-            if not data:
-                raise UserError(_('No data found in the file.'))
+                if not data:
+                    raise UserError(_('No data found in the file.'))
     
-            result = self.process_rows(data, config)
+                result = self.process_rows(data, config)
     
-            message = _(
-                'Processed {total} rows, created {created} new records, '
-                'updated {updated} existing records, '
-                'added {unmatched} to unmatched models, '
-                '{rule_without_product} rows with rule but no product.'
-            ).format(
-                total=result['total'],
-                created=result['created'],
-                updated=result['updated'],
-                unmatched=result['unmatched'],
-                rule_without_product=result['rule_without_product']
-            )
+                message = _(
+                    'Processed {total} rows, created {created} new records, '
+                    'updated {updated} existing records, '
+                    'added {unmatched} to unmatched models, '
+                    '{rule_without_product} rows with rule but no product.'
+                ).format(
+                    total=result['total'],
+                    created=result['created'],
+                    updated=result['updated'],
+                    unmatched=result['unmatched'],
+                    rule_without_product=result['rule_without_product']
+                )
     
-            if result.get('new_combination_rules'):
-                new_rules = list(set(result['new_combination_rules']))  # Remove duplicates
-                self.new_combination_rules = "\n".join(new_rules)
-                message += _('\n\nNew Combination Rules created:\n{}').format(self.new_combination_rules)
+                if result.get('new_combination_rules'):
+                    new_rules = "\n".join(result['new_combination_rules'])
+                    message += _('\n\nNew Combination Rules created:\n{}').format(new_rules)
+                    self.new_combination_rules = new_rules
+                else:
+                    self.new_combination_rules = False
     
-            if result['errors']:
-                error_message = collect_errors(result['errors'])
-                message += _('\n\nErrors occurred during import. Check the logs for details.')
-                log_level = "warning"
-            else:
-                log_level = "info"
+                if result.get('errors'):
+                    error_message = collect_errors(result['errors'])
+                    message += _('\n\nErrors occurred during import. Check the logs for details.')
+                    log_level = "warning"
+                else:
+                    log_level = "info"
     
-            log_and_notify(message, error_type=log_level)
+                log_and_notify(message, error_type=log_level)
     
-            # Update the state to 'done' and set the result message
-            self.write({
-                'state': 'done',
-                'result_message': message
-            })
-            
+                # Update the state to 'done' and set the result message
+                self.write({
+                    'state': 'done',
+                    'result_message': message
+                })
+    
+            self.env.cr.commit()
             return self._reopen_view()
     
         except Exception as e:
+            # Rollback the transaction in case of any error
+            self.env.cr.rollback()
             error_message = _("Error during file import: {}").format(str(e))
             _logger.error(error_message, exc_info=True)
             log_and_notify(error_message, error_type="error")
             
-            raise UserError(error_message)
+            # Update the state to 'error' and set the error message
+            self.write({
+                'state': 'error',
+                'result_message': error_message
+            })
+            
+            return self._reopen_view()
 
     def process_rows(self, data, config):
         IncomingProductInfo = self.env['incoming.product.info']
@@ -98,11 +112,11 @@ class ImportProductInfo(models.TransientModel):
         errors = []
         new_combination_rules = set()
         unmatched_models = {}
-
+    
         for chunk in data:
             create_vals = []
             update_vals = []
-
+    
             for index, row in enumerate(chunk, start=total_processed + 1):
                 try:
                     values = self._process_row_values(row, config)
@@ -118,7 +132,7 @@ class ImportProductInfo(models.TransientModel):
                             ('supplier_id', '=', config.supplier_id.id),
                             ('sn', '=', values['sn'])
                         ], limit=1)
-
+    
                         if existing_info:
                             update_vals.append((existing_info.id, values))
                         else:
@@ -131,11 +145,11 @@ class ImportProductInfo(models.TransientModel):
                         else:
                             unmatched_models[model_no] = {'values': values, 'count': 1}
                         _logger.info(f"Added to unmatched models: {model_no}")
-
+    
                     # Check if a new combination rule was created
                     if new_rule:
                         new_combination_rules.add(f"{new_rule.value_1} - {new_rule.value_2}")
-
+    
                 except Exception as e:
                     errors.append((index, row, str(e)))
                     _logger.error(f"Error processing row {index}: {str(e)}", exc_info=True)
@@ -175,7 +189,7 @@ class ImportProductInfo(models.TransientModel):
             'unmatched_rows': total_unmatched_rows,
             'rule_without_product': total_rule_without_product,
             'errors': errors,
-            'new_combination_rules': list(new_combination_rules)
+            'new_combination_rules': list(new_combination_rules) if new_combination_rules else []
         }
 
     def _process_row_values(self, row, config):
