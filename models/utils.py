@@ -19,16 +19,7 @@ def process_csv(file_content, chunk_size=1000):
     try:
         csv_data = io.StringIO(file_content.decode('utf-8'))
         reader = csv.DictReader(csv_data, delimiter=';')
-        
-        chunk = []
-        for row in reader:
-            chunk.append(row)
-            if len(chunk) == chunk_size:
-                yield chunk
-                chunk = []
-        if chunk:
-            yield chunk
-
+        return list(reader)
     except Exception as e:
         raise UserError(_('Error processing CSV file: %s') % str(e))
 

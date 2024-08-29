@@ -37,7 +37,6 @@ class FileAnalysisWizard(models.TransientModel):
         if self.import_config_id:
             self.field_ids = False
 
-    @api.model
     def action_analyze_file(self):
         self.ensure_one()
         _logger.info("action_analyze_file method called")
@@ -53,10 +52,8 @@ class FileAnalysisWizard(models.TransientModel):
         
         try:
             if self.file_type == 'csv':
-                _logger.info("Processing CSV file")
                 data = process_csv(file_content)
             elif self.file_type == 'excel':
-                _logger.info("Processing Excel file")
                 data = process_excel(file_content)
             else:
                 raise UserError(_("Unsupported file format."))
@@ -65,7 +62,7 @@ class FileAnalysisWizard(models.TransientModel):
                 raise UserError(_("No data found in the file."))
     
             _logger.info("Calling _analyze_data method")
-            analysis_result, filtered_combinations, unmatched_to_move = self._analyze_data(data)
+            analysis_result, filtered_combinations, _ = self._analyze_data(file_content)
     
             self.write({
                 'analysis_result': analysis_result,
@@ -92,26 +89,33 @@ class FileAnalysisWizard(models.TransientModel):
             'context': {'form_view_initial_mode': 'edit'},
         }
 
-    def _analyze_data(self, data):
-        _logger.info("Inside _analyze_data method")
+    def _analyze_data(self, file_content):
         field1, field2 = self.field_ids
         field1_name = field1.source_column
         field2_name = field2.source_column
         field1_label = field1.custom_label or field1.source_column
         field2_label = field2.custom_label or field2.source_column
-
+    
         _logger.info(f"Analyzing fields: {field1_name} and {field2_name}")
-
+    
         ImportCombinationRule = self.env['import.combination.rule']
         UnmatchedModelNo = self.env['unmatched.model.no']
-
+    
         existing_rules = ImportCombinationRule.search([('config_id', '=', self.import_config_id.id)])
         existing_combinations = {(rule.value_1.lower(), rule.value_2.lower()): rule for rule in existing_rules}
-
+    
         unmatched_models = UnmatchedModelNo.search([('config_id', '=', self.import_config_id.id)])
         unmatched_dict = {model.model_no.lower(): model for model in unmatched_models}
-
+    
         new_combinations = {}
+        
+        if self.file_type == 'csv':
+            data = process_csv(file_content)
+        elif self.file_type == 'excel':
+            data = process_excel(file_content)
+        else:
+            raise UserError(_("Unsupported file format."))
+        
         for chunk in data:
             for row in chunk:
                 val1 = row.get(field1_name, '').strip()
@@ -163,8 +167,9 @@ class FileAnalysisWizard(models.TransientModel):
     def action_create_combination_rules(self):
         self.ensure_one()
         ImportCombinationRule = self.env['import.combination.rule']
-    
-        _, filtered_combinations, unmatched_to_move = self._analyze_data(self._get_file_content())
+        
+        file_content = self._get_file_content()
+        _, filtered_combinations, unmatched_to_move = self._analyze_data(file_content)
     
         created_rules = 0
         for (val1, val2), _ in filtered_combinations.items():
@@ -204,3 +209,9 @@ class FileAnalysisWizard(models.TransientModel):
                 'sticky': False,
             }
         }
+
+    def _get_file_content(self):
+        self.ensure_one()
+        if not self.file:
+            raise UserError(_("Please upload a file before analyzing."))
+        return base64.b64decode(self.file)
