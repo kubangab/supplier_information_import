@@ -64,10 +64,11 @@ class UnmatchedModelNo(models.Model, ProductSelectionMixin):
 
     @api.model
     def _add_to_unmatched_models(self, values, config):
-        model_no = values.get('model_no')
+        model_no = values.get('model_no', '')
+        model_no_lower = model_no.lower() if model_no else ''  # Lägg till denna rad
         existing = self.search([
             ('config_id', '=', config.id),
-            ('model_no', '=', model_no)
+            ('model_no_lower', '=', model_no_lower)  # Ändra denna rad
         ], limit=1)
     
         if existing:
@@ -80,6 +81,7 @@ class UnmatchedModelNo(models.Model, ProductSelectionMixin):
                 'config_id': config.id,
                 'supplier_id': config.supplier_id.id,
                 'model_no': model_no,
+                'model_no_lower': model_no_lower,  # Lägg till denna rad
                 'pn': values.get('pn'),
                 'product_code': values.get('supplier_product_code') or values.get('product_code') or model_no,
                 'supplier_product_code': values.get('supplier_product_code') or model_no,

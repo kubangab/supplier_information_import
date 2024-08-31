@@ -103,6 +103,8 @@ class ImportProductInfo(models.TransientModel):
     def process_rows(self, data, config):
         IncomingProductInfo = self.env['incoming.product.info']
         UnmatchedModelNo = self.env['unmatched.model.no']
+        StockQuant = self.env['stock.quant']
+        StockProductionLot = self.env['stock.lot']  # Ändrat från 'stock.production.lot' till 'stock.lot'
         
         total_processed = 0
         total_created = 0
@@ -122,7 +124,7 @@ class ImportProductInfo(models.TransientModel):
                     values = self._process_row_values(row, config)
                     
                     product, new_rule = IncomingProductInfo._search_product(values, config)
-                    if product == 'rule_without_product':
+                    if isinstance(product, str) and product == 'rule_without_product':
                         total_rule_without_product += 1
                         _logger.info(f"Rule found but no product assigned for row {index}")
                     elif product:
@@ -133,12 +135,32 @@ class ImportProductInfo(models.TransientModel):
                             ('sn', '=', values['sn'])
                         ], limit=1)
     
+                        # Check if the specific serial number exists in stock
+                        lot = StockProductionLot.search([
+                            ('name', '=', values['sn']),
+                            ('product_id', '=', product.id)
+                        ], limit=1)
+                        
+                        stock_quant = StockQuant.search([
+                            ('product_id', '=', product.id),
+                            ('lot_id', '=', lot.id if lot else False),
+                            ('quantity', '>', 0)
+                        ], limit=1)
+    
+                        if stock_quant:
+                            values['state'] = 'received'
+                            _logger.info(f"Product found in stock with matching serial number: {product.name}, SN: {values['sn']}")
+                        else:
+                            values['state'] = 'pending'
+                            _logger.info(f"Product or serial number not found in stock, marking as pending: {product.name}, SN: {values['sn']}")
+    
                         if existing_info:
                             update_vals.append((existing_info.id, values))
                         else:
                             create_vals.append(values)
                     else:
                         total_unmatched += 1
+                        values['state'] = 'pending'
                         model_no = values.get('model_no', '')
                         if model_no in unmatched_models:
                             unmatched_models[model_no]['count'] += 1
@@ -146,7 +168,6 @@ class ImportProductInfo(models.TransientModel):
                             unmatched_models[model_no] = {'values': values, 'count': 1}
                         _logger.info(f"Added to unmatched models: {model_no}")
     
-                    # Check if a new combination rule was created
                     if new_rule:
                         new_combination_rules.add(f"{new_rule.value_1} - {new_rule.value_2}")
     
@@ -166,21 +187,21 @@ class ImportProductInfo(models.TransientModel):
                     IncomingProductInfo.browse(record_id).write(values)
                 total_updated += len(update_vals)
                 _logger.info(f"Updated {len(update_vals)} existing records in this batch")
-
+    
             total_processed += len(chunk)
-
+    
         # Process unmatched models
         for model_no, data in unmatched_models.items():
             UnmatchedModelNo._add_to_unmatched_models(data['values'], config)
-
+    
         # Get the final count of unmatched models
         unmatched_count = UnmatchedModelNo.search_count([('config_id', '=', config.id)])
         total_unmatched_rows = sum(UnmatchedModelNo.search([('config_id', '=', config.id)]).mapped('count'))
-
+    
         _logger.info(f"Final count - Processed {total_processed} rows, created {total_created} new records, "
-                     f"updated {total_updated} existing records, {unmatched_count} unique unmatched models "
-                     f"(total {total_unmatched_rows} unmatched rows), {total_rule_without_product} rows with rule but no product")
-
+                    f"updated {total_updated} existing records, {unmatched_count} unique unmatched models "
+                    f"(total {total_unmatched_rows} unmatched rows), {total_rule_without_product} rows with rule but no product")
+    
         return {
             'total': total_processed,
             'created': total_created,

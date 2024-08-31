@@ -65,18 +65,21 @@ class IncomingProductInfo(models.Model):
             field2_value = values.get(field2_name, '').strip()
             field1_value_lower = field1_value.lower()
             field2_value_lower = field2_value.lower()
-    
+      
             _logger.info(f"Searching with Field1: {field1_name}={field1_value}, Field2: {field2_name}={field2_value}")
-    
+      
             # Check Combination Rules
             rule_result, new_rule = self._check_combination_rules(values, config, supplier_and_contacts, field1_name, field2_name)
             if rule_result:
                 if rule_result == 'rule_without_product':
                     _logger.info(f"Combination rule found but no product assigned for {field1_name}: {field1_value}")
                     return 'rule_without_product', new_rule
-                else:
+                elif isinstance(rule_result, models.Model) and rule_result._name == 'product.product':
                     _logger.info(f"Product found via Combination Rules: {rule_result.name}")
                     return rule_result, new_rule
+                else:
+                    _logger.warning(f"Unexpected rule_result type: {type(rule_result)}")
+                    return False, new_rule
     
             # Check Unmatched Model No
             unmatched_product = self._check_unmatched_model(field1_value, config, supplier_and_contacts)
@@ -92,7 +95,7 @@ class IncomingProductInfo(models.Model):
                 ('seller_ids.partner_id', 'in', supplier_and_contacts.ids)
             ]
             products = self.env['product.product'].search(domain)
-    
+            
             if len(products) == 1:
                 _logger.info(f"Product found via supplier product code: {products.name}")
                 return products, False
@@ -106,7 +109,7 @@ class IncomingProductInfo(models.Model):
             self._add_to_unmatched_models(values, config)
             
             return False, False
-    
+            
         except Exception as e:
             _logger.error(f"Error in _search_product: {str(e)}", exc_info=True)
             return False, False
@@ -210,9 +213,12 @@ class IncomingProductInfo(models.Model):
         row_identifier = f"{values.get('sn', '')}-{values.get('supplier_product_code', '')}"
     
         if existing:
-            # Load existing raw_data
-            existing_data = json.loads(existing.raw_data) if existing.raw_data else {}
-            
+            try:
+                existing_data = json.loads(existing.raw_data) if existing.raw_data else {}
+            except json.JSONDecodeError:
+                _logger.warning(f"Invalid JSON in raw_data for model_no {model_no}. Resetting raw_data.")
+                existing_data = {}
+    
             if row_identifier not in existing_data:
                 existing_data[row_identifier] = values
                 
@@ -239,6 +245,7 @@ class IncomingProductInfo(models.Model):
                 'count': 1
             })
             _logger.info(f"Added new unmatched model: {model_no}")
+
     def _check_model_no_against_product_code(self, model_no, config, supplier_ids):
         domain = [
             ('seller_ids.name', 'in', supplier_ids),
