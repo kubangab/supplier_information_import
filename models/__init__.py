@@ -1,4 +1,5 @@
 from . import product_info_report_mixin
+from . import sale_order
 from . import product_selection_mixin
 from . import import_combination_rule
 from . import import_column_mapping
@@ -6,5 +7,4 @@ from . import incoming_product_info
 from . import import_format_config
 from . import stock_picking
 from . import unmatched_model_no
-from . import sale_order
 from . import report_field_config

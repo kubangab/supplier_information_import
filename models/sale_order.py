@@ -1,6 +1,7 @@
 from odoo import models
 import base64
 import logging
+from . import product_info_report_mixin
 
 _logger = logging.getLogger(__name__)
 
