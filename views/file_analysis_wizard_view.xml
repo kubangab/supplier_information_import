@@ -15,7 +15,15 @@
                     <field name="file_name" invisible="1"/>
                     <field name="file_type" invisible="1"/>
                     <field name="field_names" readonly="1"/>
-                    <field name="field_ids" widget="many2many_tags" options="{'no_create': True}" domain="[('config_id', '=', import_config_id)]"/>
+                </group>
+                <group string="Fields for Analysis">
+                    <field name="model_no_field_id" readonly="1"/>
+                    <field name="second_field_id" options="{'no_create': True}" domain="[('config_id', '=', import_config_id), ('id', '!=', model_no_field_id)]"/>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <strong>Note:</strong> The "Model No." field is automatically selected as the first field for analysis and cannot be changed.
+                </div>
+                <group>
                     <field name="filtered_combinations" invisible="1"/>
                 </group>
                 <group>

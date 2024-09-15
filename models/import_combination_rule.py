@@ -1,7 +1,9 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import json
+import logging
 
+_logger = logging.getLogger(__name__)
 
 class ImportCombinationRule(models.Model):
     _name = 'import.combination.rule'
@@ -12,8 +14,8 @@ class ImportCombinationRule(models.Model):
     config_id = fields.Many2one('import.format.config', string='Import Configuration')
     supplier_id = fields.Many2one(related='config_id.supplier_id', store=True, readonly=True)
     name = fields.Char(string='Rule Name', required=True, index=True)
-    field_1 = fields.Many2one('import.column.mapping', string='Field 1', domain="[('config_id', '=', config_id)]")
-    field_2 = fields.Many2one('import.column.mapping', string='Field 2', domain="[('config_id', '=', config_id)]")
+    field_1 = fields.Many2one('import.column.mapping', string='Field 1', readonly=True)
+    field_2 = fields.Many2one('import.column.mapping', string='Field 2', readonly=True)
     value_1 = fields.Char(string='Value 1', required=True)
     value_2 = fields.Char(string='Value 2', required=True)
     combination_pattern = fields.Char(string='Combination Pattern', required=True, default="{0}-{1}")
@@ -22,6 +24,39 @@ class ImportCombinationRule(models.Model):
     applied_serial_numbers = fields.Text(string='Applied Serial Numbers')
     product_id = fields.Many2one('product.product', string='Product Variant')
 
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super(ImportCombinationRule, self).default_get(fields_list)
+        if self._context.get('default_config_id'):
+            config = self.env['import.format.config'].browse(self._context['default_config_id'])
+            model_no_field = config._get_model_no_field()
+            second_field = config._get_second_analysis_field()
+            if model_no_field:
+                res['field_1'] = model_no_field.id
+                res['value_1'] = _('Model No.')
+            if second_field:
+                res['field_2'] = second_field.id
+                res['value_2'] = second_field.custom_label or second_field.source_column
+        return res
+
+    @api.onchange('config_id')
+    def _onchange_config_id(self):
+        _logger.info(f"_onchange_config_id called with config_id: {self.config_id.id}")
+        if self.config_id:
+            model_no_field = self.config_id._get_model_no_field()
+            second_field = self.config_id._get_second_analysis_field()
+            _logger.info(f"model_no_field: {model_no_field.name if model_no_field else 'None'}, second_field: {second_field.name if second_field else 'None'}")
+            if model_no_field:
+                self.field_1 = model_no_field
+                self.value_1 = _('Model No.')
+                _logger.info(f"Set field_1 to {self.field_1.name} and value_1 to {self.value_1}")
+            if second_field:
+                self.field_2 = second_field
+                self.value_2 = second_field.custom_label or second_field.source_column
+                _logger.info(f"Set field_2 to {self.field_2.name} and value_2 to {self.value_2}")
+            else:
+                _logger.warning("Second analysis field is not set in the configuration")
 
     @api.constrains('field_1', 'field_2')
     def _check_fields(self):
@@ -39,10 +74,6 @@ class ImportCombinationRule(models.Model):
     def _onchange_fields_values(self):
         if self.field_1 and self.field_2 and self.value_1 and self.value_2:
             self.name = f"{self.value_1} - {self.value_2}"
-
-    @api.onchange('config_id')
-    def _onchange_config_id(self):
-        return {'domain': {'product_id': self._get_product_domain()}}
 
     @api.model
     def update_rule_count(self, rule_id, serial_number):

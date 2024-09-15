@@ -18,6 +18,8 @@ class FileAnalysisWizard(models.TransientModel):
     file_type = fields.Selection(related='import_config_id.file_type', readonly=True)
     field_ids = fields.Many2many('import.column.mapping', string='Fields to Analyze', 
                                  domain="[('config_id', '=', import_config_id)]")
+    model_no_field_id = fields.Many2one('import.column.mapping', string='Model No. Field', compute='_compute_model_no_field', readonly=True, store=True)
+    second_field_id = fields.Many2one('import.column.mapping', string='Second Field', required=True)
     field_names = fields.Char(compute='_compute_field_names', string='Available Fields')
     analysis_result = fields.Text(string='Analysis Result', readonly=True)
     state = fields.Selection([('draft', 'Draft'), ('warning', 'Warning'), ('done', 'Done')], default='draft')
@@ -25,6 +27,17 @@ class FileAnalysisWizard(models.TransientModel):
     product_code = fields.Char(string='Product Code')
     filtered_combinations = fields.Text(string='Filtered Combinations')
     
+
+    @api.depends('import_config_id')
+    def _compute_model_no_field(self):
+        for wizard in self:
+            wizard.model_no_field_id = wizard.import_config_id._get_model_no_field()
+
+    @api.onchange('second_field_id')
+    def _onchange_second_field(self):
+        if self.model_no_field_id and self.second_field_id:
+            self.field_ids = [(6, 0, [self.model_no_field_id.id, self.second_field_id.id])]
+
     @api.depends('import_config_id.column_mapping')
     def _compute_field_names(self):
         for record in self:
@@ -39,43 +52,41 @@ class FileAnalysisWizard(models.TransientModel):
 
     def action_analyze_file(self):
         self.ensure_one()
-        _logger.info("action_analyze_file method called")
-        _logger.info("File name: %s", self.file_name)
-        if not self.file:
-            self.write({'state': 'warning', 'warning_message': _("Please select a file.")})
-            return self._reopen_view()
-        if len(self.field_ids) != 2:
-            self.write({'state': 'warning', 'warning_message': _("Please select exactly two fields for analysis.")})
-            return self._reopen_view()
-    
-        file_content = base64.b64decode(self.file)
-        
         try:
+            if not self.file or not self.model_no_field_id or not self.second_field_id:
+                raise UserError("Please select a file, ensure Model No. field is set, and select the second field for analysis.")
+
+            # Spara det andra analysfältet till ImportFormatConfig
+            self.import_config_id.write({
+                'second_analysis_field_id': self.second_field_id.id
+            })
+            self.env.cr.commit()  # Tvinga en commit för att säkerställa att ändringen sparas
+            _logger.info(f"Saved second_analysis_field_id {self.second_field_id.id} to config {self.import_config_id.id}")
+
+            file_content = base64.b64decode(self.file)
+            
             if self.file_type == 'csv':
                 data = process_csv(file_content)
             elif self.file_type == 'excel':
                 data = process_excel(file_content)
             else:
-                raise UserError(_("Unsupported file format."))
-    
+                raise UserError("Unsupported file format.")
+
             if not data:
-                raise UserError(_("No data found in the file."))
-    
-            _logger.info("Calling _analyze_data method")
-            analysis_result, filtered_combinations, _ = self._analyze_data(file_content)
-    
+                raise UserError("No data found in the file.")
+
+            analysis_result, filtered_combinations, _ = self._analyze_data(data)
+
             self.write({
                 'analysis_result': analysis_result,
                 'filtered_combinations': repr(filtered_combinations) if filtered_combinations else False,
                 'state': 'done'
             })
-    
+
             return self._reopen_view()
-    
+
         except Exception as e:
-            error_message = _("Error during file analysis: {}").format(str(e))
-            _logger.error(error_message, exc_info=True)
-            self.write({'state': 'warning', 'warning_message': error_message})
+            _logger.error("Error during file analysis: %s", str(e), exc_info=True)
             return self._reopen_view()
 
     def _reopen_view(self):
@@ -89,38 +100,40 @@ class FileAnalysisWizard(models.TransientModel):
             'context': {'form_view_initial_mode': 'edit'},
         }
 
-    def _analyze_data(self, file_content):
-        field1, field2 = self.field_ids
+    def _analyze_data(self, data):
+        _logger.info(f"Analyzing data of type: {type(data)}")
+        
+        field1 = self.model_no_field_id
+        field2 = self.second_field_id
+        
+        if not field1 or not field2:
+            raise UserError(_("Both Model No. field and second analysis field must be selected."))
+        
+        if field1 != self.import_config_id._get_model_no_field():
+            raise UserError(_("The first field must always be the Model No. field."))
+
         field1_name = field1.source_column
         field2_name = field2.source_column
         field1_label = field1.custom_label or field1.source_column
         field2_label = field2.custom_label or field2.source_column
-    
+
         _logger.info(f"Analyzing fields: {field1_name} and {field2_name}")
-    
+
         ImportCombinationRule = self.env['import.combination.rule']
         UnmatchedModelNo = self.env['unmatched.model.no']
-    
+
         existing_rules = ImportCombinationRule.search([('config_id', '=', self.import_config_id.id)])
         existing_combinations = {(rule.value_1.lower(), rule.value_2.lower()): rule for rule in existing_rules}
-    
+
         unmatched_models = UnmatchedModelNo.search([('config_id', '=', self.import_config_id.id)])
         unmatched_dict = {model.model_no.lower(): model for model in unmatched_models}
-    
+
         new_combinations = {}
-        
-        if self.file_type == 'csv':
-            data = process_csv(file_content)
-        elif self.file_type == 'excel':
-            data = process_excel(file_content)
-        else:
-            raise UserError(_("Unsupported file format."))
         
         for chunk in data:
             for row in chunk:
                 val1 = row.get(field1_name, '').strip()
                 val2 = preprocess_field_value(row.get(field2_name, '').strip())
-                
                 _logger.info(f"Processing row: {field1_name}={val1}, {field2_name}={val2}")
                 
                 if not val1:
@@ -166,45 +179,58 @@ class FileAnalysisWizard(models.TransientModel):
 
     def action_create_combination_rules(self):
         self.ensure_one()
+        _logger.info("Starting action_create_combination_rules")
+
         ImportCombinationRule = self.env['import.combination.rule']
-        
+
         file_content = self._get_file_content()
+        _logger.info(f"Got file content of type: {type(file_content)}")
+        
         _, filtered_combinations, unmatched_to_move = self._analyze_data(file_content)
-    
+
+        _logger.info(f"Analysis complete. Filtered combinations: {len(filtered_combinations)}, Unmatched to move: {len(unmatched_to_move)}")
+
         created_rules = 0
+        model_no_field = self.model_no_field_id
+        second_field = self.second_field_id
+        
+        if not model_no_field or not second_field:
+            raise UserError(_("Both Model No. field and second analysis field must be set in the configuration."))
+
+        # Använd endast filtered_combinations
         for (val1, val2), _ in filtered_combinations.items():
             ImportCombinationRule.create({
                 'config_id': self.import_config_id.id,
-                'field_1': self.field_ids[0].id,
-                'field_2': self.field_ids[1].id,
+                'field_1': model_no_field.id,
+                'field_2': second_field.id,
                 'value_1': val1,
                 'value_2': val2,
                 'name': f"{val1} - {val2}",
             })
             created_rules += 1
-    
+
         # Move unmatched models to combination rules
         for unmatched_model in unmatched_to_move.values():
             ImportCombinationRule.create({
                 'config_id': self.import_config_id.id,
-                'field_1': self.field_ids[0].id,
-                'field_2': self.field_ids[1].id,
+                'field_1': model_no_field.id,
+                'field_2': second_field.id,
                 'value_1': unmatched_model.model_no,
                 'value_2': unmatched_model.pn,
                 'name': f"{unmatched_model.model_no} - {unmatched_model.pn}",
             })
             unmatched_model.unlink()
             created_rules += 1
-    
+
         message = [f"Created {created_rules} new combination rules."]
         if unmatched_to_move:
             message.append(f"Moved {len(unmatched_to_move)} unmatched models to combination rules.")
-    
+
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'message': message,
+                'message': "\n".join(message),
                 'type': 'success',
                 'sticky': False,
             }
@@ -214,4 +240,27 @@ class FileAnalysisWizard(models.TransientModel):
         self.ensure_one()
         if not self.file:
             raise UserError(_("Please upload a file before analyzing."))
-        return base64.b64decode(self.file)
+        content = base64.b64decode(self.file)
+        _logger.info(f"File content type: {type(content)}, length: {len(content)}")
+        
+        if self.file_type == 'csv':
+            return process_csv(content)
+        elif self.file_type == 'excel':
+            return process_excel(content)
+        else:
+            raise UserError(_("Unsupported file format."))
+
+    def _process_row(self, row, field1_name, field2_name, new_combinations):
+        val1 = row.get(field1_name, '').strip()
+        val2 = preprocess_field_value(row.get(field2_name, '').strip())
+        
+        _logger.info(f"Processing row: {field1_name}={val1}, {field2_name}={val2}")
+        
+        if not val1:
+            _logger.info(f"Skipping row due to empty {field1_name}")
+            return
+        
+        key = val1.lower()
+        if key not in new_combinations:
+            new_combinations[key] = {'values': set(), 'original': val1}
+        new_combinations[key]['values'].add((val2, val2.lower()))

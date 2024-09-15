@@ -30,6 +30,24 @@ class ImportFormatConfig(models.Model):
     report_worksheet_name = fields.Char(string='Report Worksheet Name', default='Product Info', translate=False)
     report_field_ids = fields.One2many('report.field.config', 'config_id', string='Report Fields')
     combination_rule_ids = fields.One2many('import.combination.rule', 'config_id', string='Combination Rules')
+    second_analysis_field_id = fields.Many2one('import.column.mapping', string='Second Analysis Field')
+    second_analysis_field_name = fields.Char(string='Second Analysis Field Name', compute='_compute_second_analysis_field_name')
+
+    @api.model
+    def _get_model_no_field(self):
+        return self.column_mapping.filtered(lambda m: m.destination_field_name == 'model_no')[:1]
+
+    @api.depends('second_analysis_field_id')
+    def _compute_second_analysis_field_name(self):
+        for record in self:
+            record.second_analysis_field_name = record.second_analysis_field_id.custom_label or record.second_analysis_field_id.source_column
+
+    def _get_second_analysis_field(self):
+        self.ensure_one()
+        _logger.info(f"_get_second_analysis_field called for config {self.id}")
+        result = self.second_analysis_field_id
+        _logger.info(f"Returning second analysis field: {result.name if result else 'None'}")
+        return result
 
     @api.depends('column_mapping')
     def _compute_available_field_ids(self):

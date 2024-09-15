@@ -12,7 +12,9 @@
                         <field name="supplier_id" domain="[('supplier_rank', '>', 0)]"/>
                         <field name="sample_file" filename="sample_file_name"/>
                         <field name="sample_file_name" invisible="1"/>
+                        <field name="second_analysis_field_id" readonly="1"/>
                     </group>
+
                     <notebook attrs="{'invisible': [('id', '=', False)]}">
                         <page string="Column Mappings">
                             <field name="column_mapping">
@@ -28,13 +30,14 @@
                             </div>
                         </page>
                         <page string="Combination Rules">
-                            <field name="combination_rule_ids">
+                            <field name="combination_rule_ids" context="{'default_config_id': active_id}">
                                 <tree editable="bottom">
+                                    <field name="config_id" invisible="1"/>
                                     <field name="name"/>
-                                    <field name="field_1" domain="[('config_id', '=', parent.id)]"/>
-                                    <field name="value_1"/>
-                                    <field name="field_2" domain="[('config_id', '=', parent.id)]"/>
-                                    <field name="value_2"/>
+                                    <field name="field_1" force_save="1" readonly="1"/>
+                                    <field name="value_1" force_save="1"/>
+                                    <field name="field_2" force_save="1" readonly="1"/>
+                                    <field name="value_2" force_save="1"/>
                                     <field name="product_id" options="{'no_create': True}" domain="['|', '|', ('seller_ids.partner_id', '=', parent.supplier_id), ('seller_ids.partner_id', 'child_of', parent.supplier_id), ('seller_ids.partner_id', 'parent_of', parent.supplier_id)]"/>
                                     <field name="count" readonly="1"/>
                                 </tree>
@@ -81,9 +84,9 @@
                     <group>
                         <field name="config_id"/>
                         <field name="name"/>
-                        <field name="field_1" domain="[('config_id', '=', config_id)]"/>
+                        <field name="field_1" readonly="1" force_save="1"/>
                         <field name="value_1"/>
-                        <field name="field_2" domain="[('config_id', '=', config_id)]"/>
+                        <field name="field_2" readonly="1" force_save="1"/>
                         <field name="value_2"/>
                         <field name="product_id" options="{'no_create': True}" domain="[('type', '=', 'product')]"/>
                         <field name="count" readonly="1"/>
