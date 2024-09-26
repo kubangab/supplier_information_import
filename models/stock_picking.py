@@ -76,36 +76,31 @@ class StockPicking(models.Model):
         return lines
 
     @api.model
-    def _update_incoming_product_info(self):
-        _logger.info("Starting _update_incoming_product_info")
+    def _update_incoming_product_info(self, picking=None):
         IncomingProductInfo = self.env['incoming.product.info']
-        for move_line in self.move_line_ids:
-            if move_line.lot_id:
-                _logger.info(f"Processing move_line with lot: {move_line.lot_id.name}")
-                incoming_info = IncomingProductInfo.search([
-                    ('sn', '=', move_line.lot_id.name),
-                    ('product_id', '=', move_line.product_id.id),
-                    ('state', '=', 'pending')
-                ])
-                if incoming_info:
-                    _logger.info(f"Updating incoming_info: {incoming_info.id}")
-                    incoming_info.write({
-                        'state': 'received',
-                        'stock_picking_id': self.id
-                    })
-                else:
-                    _logger.info(f"No matching incoming_info found for SN: {move_line.lot_id.name}")
-        _logger.info("Finished _update_incoming_product_info")
+        pickings = picking or self
+        for pick in pickings:
+            if pick.picking_type_code == 'incoming':
+                for move_line in pick.move_line_ids:
+                    if move_line.lot_id:
+                        incoming_info = IncomingProductInfo.search([
+                            ('sn', '=', move_line.lot_id.name),
+                            ('product_id', '=', move_line.product_id.id),
+                            ('state', '=', 'pending')
+                        ])
+                        if incoming_info:
+                            incoming_info.write({
+                                'state': 'received',
+                                'stock_picking_id': pick.id
+                            })
 
     def button_validate(self):
         res = super(StockPicking, self).button_validate()
-        if self.picking_type_code == 'incoming':
-            _logger.info("Calling _update_incoming_product_info")
-            self._update_incoming_product_info()
+        self._update_incoming_product_info()
         return res
 
     @api.model
-    def _run_postprocess_hook(self):
-        super(StockPicking, self)._run_postprocess_hook()
-        if self.picking_type_code == 'incoming':
-            self._update_incoming_product_info()
+    def _run_scheduler_tasks(self, use_new_cursor=False, company_id=False):
+        res = super(StockPicking, self)._run_scheduler_tasks(use_new_cursor=use_new_cursor, company_id=company_id)
+        self._update_incoming_product_info()
+        return res
