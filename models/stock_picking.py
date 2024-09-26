@@ -1,6 +1,8 @@
-from odoo import models, _
+from odoo import models, api, _
 from odoo.exceptions import UserError
-import base64
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class StockPicking(models.Model):
     _name = 'stock.picking'
@@ -9,7 +11,7 @@ class StockPicking(models.Model):
     def action_set_quantities_from_pending(self):
         IncomingProductInfo = self.env['incoming.product.info']
         StockMoveLine = self.env['stock.move.line']
-
+        
         for picking in self:
             if picking.picking_type_code != 'incoming':
                 raise UserError(_("This action is only available for incoming transfers."))
@@ -72,3 +74,38 @@ class StockPicking(models.Model):
             sale_line = move_line.move_id.sale_line_id
             lines.append((sale_line or move_line, move_line))
         return lines
+
+    @api.model
+    def _update_incoming_product_info(self):
+        _logger.info("Starting _update_incoming_product_info")
+        IncomingProductInfo = self.env['incoming.product.info']
+        for move_line in self.move_line_ids:
+            if move_line.lot_id:
+                _logger.info(f"Processing move_line with lot: {move_line.lot_id.name}")
+                incoming_info = IncomingProductInfo.search([
+                    ('sn', '=', move_line.lot_id.name),
+                    ('product_id', '=', move_line.product_id.id),
+                    ('state', '=', 'pending')
+                ])
+                if incoming_info:
+                    _logger.info(f"Updating incoming_info: {incoming_info.id}")
+                    incoming_info.write({
+                        'state': 'received',
+                        'stock_picking_id': self.id
+                    })
+                else:
+                    _logger.info(f"No matching incoming_info found for SN: {move_line.lot_id.name}")
+        _logger.info("Finished _update_incoming_product_info")
+
+    def button_validate(self):
+        res = super(StockPicking, self).button_validate()
+        if self.picking_type_code == 'incoming':
+            _logger.info("Calling _update_incoming_product_info")
+            self._update_incoming_product_info()
+        return res
+
+    @api.model
+    def _run_postprocess_hook(self):
+        super(StockPicking, self)._run_postprocess_hook()
+        if self.picking_type_code == 'incoming':
+            self._update_incoming_product_info()

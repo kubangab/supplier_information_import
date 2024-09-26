@@ -37,7 +37,6 @@ class IncomingProductInfo(models.Model):
     lot_id = fields.Many2one('stock.lot', string='Lot/Serial Number')
     result_message = fields.Text(string='Import Result', readonly=True)
 
-
     @api.depends('supplier_product_code', 'sn')
     def _compute_name(self):
         for record in self:
@@ -297,6 +296,7 @@ class IncomingProductInfo(models.Model):
         """
         if 'supplier_product_code' in vals and not vals['supplier_product_code']:
             vals['supplier_product_code'] = self.model_no or ''
+        _logger.info(f"Writing to incoming.product.info {self.id} with vals: {vals}")
         return super(IncomingProductInfo, self).write(vals)
 
     @api.model
