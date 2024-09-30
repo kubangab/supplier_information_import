@@ -32,6 +32,7 @@ class ImportFormatConfig(models.Model):
     combination_rule_ids = fields.One2many('import.combination.rule', 'config_id', string='Combination Rules')
     second_analysis_field_id = fields.Many2one('import.column.mapping', string='Second Analysis Field')
     second_analysis_field_name = fields.Char(string='Second Analysis Field Name', compute='_compute_second_analysis_field_name')
+    company_id = fields.Many2one('res.company', string='Company', default=lambda self: self.env.company)
 
     @api.model
     def _get_model_no_field(self):

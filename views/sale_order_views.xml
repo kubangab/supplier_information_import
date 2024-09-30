@@ -10,7 +10,7 @@
                         string="Send Product Info" 
                         type="object"
                         attrs="{'invisible': [('state', 'not in', ['sale', 'done'])]}"
-                        groups="stock.group_stock_user"/>
+                        groups="supplier_information_import.group_send_product_info"/>
             </button>
         </field>
     </record>

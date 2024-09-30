@@ -31,6 +31,15 @@ class ProductInfoReportMixin(models.AbstractModel):
         raise NotImplementedError(_("This method must be implemented in the inheriting model"))
 
     def action_generate_and_send_excel(self):
+        """
+        Generate and send an Excel report with product information.
+        
+        This method creates an Excel report containing product information,
+        attaches it to an email, and opens a compose window for the user to send the email.
+        
+        :return: An action to open the email compose window
+        :rtype: dict
+        """
         self.ensure_one()
         user_lang = self.env.user.lang
         partner = self.partner_id

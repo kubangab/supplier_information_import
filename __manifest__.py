@@ -1,7 +1,7 @@
 #  © opyright 2024 Lasse Larsson, Kubang AB
 {
     'name': 'Supplier Information Import',
-    'version': '5.0.1',
+    'version': '5.0.2',
     'category': 'Inventory',
     'summary': 'Import and manage incoming product information',
     'description': """
@@ -11,6 +11,7 @@ This module allows importing product information from various suppliers and mana
     'depends': ['base', 'product', 'stock', 'purchase','sale'],
     'license': 'LGPL-3',
     'data': [
+        'security/security_rules.xml',
         'security/ir.model.access.csv',
         'data/email_templates.xml',
         'wizards/product_operations_views.xml',

@@ -11,3 +11,5 @@ access_product_info_report_config_user,product.info.report.config user,model_pro
 access_product_info_report_config_manager,product.info.report.config manager,model_product_info_report_config,stock.group_stock_manager,1,1,1,1
 access_report_field_config_user,report.field.config user,model_report_field_config,base.group_user,1,0,0,0
 access_report_field_config_manager,report.field.config manager,model_report_field_config,stock.group_stock_manager,1,1,1,1
+access_send_product_info,Send Product Info,model_product_info_report_mixin,supplier_information_import.group_send_product_info,1,1,1,0
+access_ir_model_fields_send_product_info,ir.model.fields send product info,base.model_ir_model_fields,supplier_information_import.group_send_product_info,1,0,0,0

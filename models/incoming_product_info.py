@@ -9,6 +9,7 @@ _logger = logging.getLogger(__name__)
 class IncomingProductInfo(models.Model):
     _name = 'incoming.product.info'
     _description = 'Incoming Product Information'
+    _order = 'name'
 
     name = fields.Char(string='Name', compute='_compute_name', store=True)
     supplier_id = fields.Many2one('res.partner', string='Supplier', required=True)
